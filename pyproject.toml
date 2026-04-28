@@ -1,0 +1,72 @@
+[project]
+name = "suvalor"
+version = "0.3.0"
+description = "Cliente CLI no oficial para descarga incremental y verificada de documentos contables, extractos y cartera del portal Suvalor (Valores Bancolombia), usando una sesion autenticada propia."
+requires-python = ">=3.10"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "John Alberto Parrado Gordillo", email = "1571811+jparradog@users.noreply.github.com" },
+]
+maintainers = [
+    { name = "John Alberto Parrado Gordillo", email = "1571811+jparradog@users.noreply.github.com" },
+]
+keywords = [
+    "scraping",
+    "playwright",
+    "automation",
+    "suvalor",
+    "bancolombia",
+    "documentos-electronicos",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Financial",
+    "Topic :: Internet :: WWW/HTTP :: Browsers",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "playwright>=1.40",
+    "typer>=0.12",
+    "rich>=13.7",
+    "pydantic>=2.6",
+    "tenacity>=8.2",
+    "loguru>=0.7",
+    "tomli>=2.0; python_version < '3.11'",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/jparradog/suvalor"
+Repository = "https://github.com/jparradog/suvalor"
+Issues = "https://github.com/jparradog/suvalor/issues"
+Changelog = "https://github.com/jparradog/suvalor/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/jparradog/suvalor#readme"
+Disclaimer = "https://github.com/jparradog/suvalor/blob/main/DISCLAIMER.md"
+
+[project.scripts]
+suvalor = "suvalor.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["suvalor"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -q"

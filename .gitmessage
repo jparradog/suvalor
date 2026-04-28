@@ -1,0 +1,21 @@
+# <tipo>(<scope opcional>): <descripcion corta en imperativo, max 72 char>
+#
+# Tipos: feat, fix, docs, refactor, test, chore, perf, build, ci, style
+#
+# Ejemplos:
+#   feat(extractos): agregar flag --solo YYYY-MM
+#   fix(verificacion): aceptar PDFs con whitespace despues de %%EOF
+#   docs(readme): clarificar SUVALOR_HOME en Windows
+#
+# Body (opcional): explica el POR QUE del cambio, no el QUE.
+# Wrappear a 72 caracteres por linea.
+#
+# Footer (opcional):
+#   Closes #N        — cierra issue
+#   Refs #N          — referencia issue
+#   BREAKING CHANGE: — cambio incompatible (forzar mayor en semver)
+#
+# Reglas:
+#   - Sin Co-Authored-By ni atribucion a IA.
+#   - Sin datos personales (IDs cliente, nombres, numeros de cuenta).
+#   - Imperativo: "agregar X", no "agregado X" ni "agregue X".

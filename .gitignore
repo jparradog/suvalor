@@ -1,0 +1,114 @@
+# =============================================================================
+# Python / packaging
+# =============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+MANIFEST
+
+# Virtual envs
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# Test / coverage
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+
+# =============================================================================
+# Editores e IDEs
+# =============================================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# =============================================================================
+# Logs / artefactos
+# =============================================================================
+*.log
+*.log.*
+logs/
+
+# =============================================================================
+# Playwright
+# =============================================================================
+playwright-report/
+test-results/
+.playwright/
+
+# =============================================================================
+# Datos del usuario en runtime — NUNCA commitear
+# =============================================================================
+# El script genera todo esto bajo SUVALOR_HOME (o cwd). Si por error alguien
+# corre `suvalor` desde el repo, estas reglas evitan que su data se filtre.
+
+# Estado interno del paquete
+_state/
+_chrome_profile/
+_Fallidos/
+_PorClasificar/
+_LOG.md
+
+# Carpetas de salida (documentos contables por anio: 1900s-2099)
+[12][0-9][0-9][0-9]/
+
+# Carpetas de salida (subcomandos extractos / cartera)
+Extractos/
+Cartera/
+
+# Documentos descargados sueltos (por si caen en raiz)
+*.pdf
+*.xls
+*.xlsx
+*.csv
+VerDocumentoElectronico*
+extracto-*
+Portafolio*
+
+# Descargas parciales / temporales (Chrome, navegadores, fallos a mitad)
+*.crdownload
+*.tmp
+*.partial
+*.download
+# UUIDs hex sueltos (algunos sitios dejan archivos sin extension nombrados como UUID)
+[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]
+
+# Configuracion runtime del usuario
+config.toml
+.env
+.env.*
+!.env.example
+
+# =============================================================================
+# Herramientas de agentes IA (no son del proyecto)
+# =============================================================================
+.atl/
+.claude/
+.cursor/
+.gemini/
+.engram/
+.aider*
+CLAUDE.local.md
+GEMINI.local.md
