@@ -102,9 +102,16 @@ config.toml
 !.env.example
 
 # =============================================================================
-# Herramientas de agentes IA (no son del proyecto)
+# Herramientas de agentes IA (locales; no son del proyecto)
 # =============================================================================
+# Mantener artefactos SDD/OpenSpec versionados para poder trabajar entre equipos.
+# Ignorar solo caches/sesiones locales de agentes.
 .atl/
+.pi/
+.playwright-cli/
+context/
+judgment/
+sdd/
 .claude/
 .cursor/
 .gemini/

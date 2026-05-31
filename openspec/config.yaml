@@ -1,0 +1,41 @@
+schema: spec-driven
+strict_tdd: true
+
+context: |
+  Tech stack: Python >=3.10 CLI package managed by uv; Playwright real Chrome, Typer, Rich, Pydantic v2, Loguru, Tenacity.
+  Architecture: Typer CLI orchestrates manual-login Playwright flows split across navegador/pagina/descargador/verificacion/estado/timings/rangos/parseo/config/tipos.
+  Testing: pytest pure unit tests via uv run pytest; no network, no real Playwright, no filesystem outside tmp_path; CI covers Python 3.10-3.13 on Linux/Windows/macOS.
+  Style: Spanish identifiers/comments, pathlib, modern typing, no configured ruff/black/mypy; strict no login/captcha/OTP automation and no telemetry.
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+    - Identify affected modules/packages
+    - Refuse credential, OTP, captcha, or manual-login automation requests
+  specs:
+    - Use Given/When/Then format for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+  design:
+    - Include sequence diagrams for complex flows
+    - Document architecture decisions with rationale
+  tasks:
+    - Group tasks by phase (infrastructure, implementation, testing)
+    - Use hierarchical numbering (1.1, 1.2, etc.)
+    - Keep tasks small enough to complete in one session
+    - Forecast chained PRs when expected diff exceeds 400 changed lines
+  apply:
+    instructions:
+      - Follow existing code patterns and conventions
+      - Maintain strict TDD: write the failing pure pytest first, implement the minimum fix, then refactor
+      - Do not run real portal commands or automate login/captcha/OTP
+    tdd: true
+    test_command: "uv run pytest"
+  verify:
+    instructions:
+      - Run tests if test infrastructure exists
+      - Compare implementation against every spec scenario
+      - Full suite required before declaring package changes done
+    test_command: "uv run pytest"
+    build_command: ""
+  archive:
+    - Warn before merging destructive deltas (large removals)
