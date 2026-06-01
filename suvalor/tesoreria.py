@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .rangos import partir_en_rangos
+from .verificacion import verificar_descarga
 
 _FORMATOS_TESORERIA = {"pdf", "xls", "both"}
 _RE_TAG_TESORERIA = re.compile(r"^[a-z0-9][a-z0-9._-]{0,39}$")
@@ -24,6 +25,13 @@ class PlanTesoreria:
     cuenta_solicitada: bool
     rangos: list[tuple[dt.date, dt.date]]
     destinos: list[Path]
+
+
+@dataclass(frozen=True)
+class ResultadoPromocionTesoreria:
+    ok: bool
+    motivo: str
+    destino: Path
 
 
 def canonicalizar_tag_tesoreria(tag: str) -> str:
@@ -42,6 +50,80 @@ def formatos_tesoreria(formato: str) -> list[str]:
     if formato not in _FORMATOS_TESORERIA:
         raise ValueError("--format debe ser pdf, xls o both")
     return ["pdf", "xls"] if formato == "both" else [formato]
+
+
+def _tipo_verificacion_tesoreria(formato: str) -> str:
+    if formato == "pdf":
+        return "pdf"
+    if formato == "xls":
+        return "tesoreria"
+    raise ValueError("formato debe ser pdf o xls")
+
+
+def _mismo_archivo(a: Path, b: Path) -> bool:
+    try:
+        return a.resolve(strict=False) == b.resolve(strict=False)
+    except OSError:
+        return a.absolute() == b.absolute()
+
+
+def _borrar_candidato(candidato: Path, destino: Path) -> str:
+    if _mismo_archivo(candidato, destino):
+        return "candidato y destino son el mismo archivo"
+    try:
+        candidato.unlink(missing_ok=True)
+    except OSError as e:
+        return f"no pude borrar candidato: {e}"
+    return ""
+
+
+def debe_descargar_tesoreria(
+    destino: Path, *, formato: str, redownload: bool = False
+) -> bool:
+    """Indica si falta descargar segun validez del final existente."""
+    tipo = _tipo_verificacion_tesoreria(formato)
+    if redownload:
+        return True
+    try:
+        ok, _motivo = verificar_descarga(destino, tipo)
+    except OSError:
+        return True
+    return not ok
+
+
+def promover_candidato_tesoreria(
+    candidato: Path, destino: Path, *, formato: str
+) -> ResultadoPromocionTesoreria:
+    """Valida un candidato y lo promueve sin borrar finales previos al fallar."""
+    tipo = _tipo_verificacion_tesoreria(formato)
+    if _mismo_archivo(candidato, destino):
+        return ResultadoPromocionTesoreria(
+            False, "candidato y destino son el mismo archivo", destino
+        )
+    try:
+        ok, motivo = verificar_descarga(candidato, tipo)
+    except OSError as e:
+        motivo = str(e)
+        detalle = _borrar_candidato(candidato, destino)
+        if detalle:
+            motivo = f"{motivo}; {detalle}"
+        return ResultadoPromocionTesoreria(False, motivo, destino)
+    if not ok:
+        detalle = _borrar_candidato(candidato, destino)
+        if detalle:
+            motivo = f"{motivo}; {detalle}" if motivo else detalle
+        return ResultadoPromocionTesoreria(False, motivo or "candidato invalido", destino)
+
+    try:
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        candidato.replace(destino)
+    except OSError as e:
+        motivo = f"no pude promover candidato: {e}"
+        detalle = _borrar_candidato(candidato, destino)
+        if detalle:
+            motivo = f"{motivo}; {detalle}"
+        return ResultadoPromocionTesoreria(False, motivo, destino)
+    return ResultadoPromocionTesoreria(True, "", destino)
 
 
 def construir_destino_tesoreria(

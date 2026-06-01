@@ -7,7 +7,7 @@
 - [ ] 1.3 Create `tests/test_tesoreria_plan.py` RED: 120-day range becomes chunks <=89 days through Tesoreria CLI/planning path; 89-day boundary stays single chunk.
 - [ ] 1.4 Create `tests/test_tesoreria_destinos.py` RED: final paths use `Tesoreria/YYYY/...[_tag].{pdf,xls}`, never raw account text, skip valid finals, replace invalid finals only.
 - [ ] 1.5 Extend `tests/test_verificacion.py` RED: accept OLE XLS, XLSX workbook ZIP, HTML table row/cell, and CSV/TSV text with required delimiter/header/token constraints; reject empty, login/error HTML, headerless text.
-- [ ] 1.6 Create `tests/test_tesoreria_atomicidad.py` RED: `--redownload --format both` PDF success + XLS validation failure leaves previous valid XLS final untouched and deletes failed candidate.
+- [x] 1.6 Create `tests/test_tesoreria_atomicidad.py` RED: `--redownload --format both` PDF success + XLS validation failure leaves previous valid XLS final untouched and deletes failed candidate.
 - [ ] 1.7 Add docs RED check in `tests/test_tesoreria_docs.py`: `README.md` documents opt-in/manual login/safe tags/privacy and contains no raw sample account data.
 
 ## Phase 2: GREEN Pure Implementation
