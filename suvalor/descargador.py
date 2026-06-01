@@ -29,6 +29,8 @@ from .tesoreria import ResultadoPromocionTesoreria, promover_candidato_tesoreria
 from .timings import MemoriaTimings
 from .tipos import (
     DOWNLOAD_FILENAME,
+    ID_TESORERIA_BTN_EXCEL,
+    ID_TESORERIA_BTN_PDF,
     POSTBACK_TARGET_GV,
     TESORERIA_FORMATOS_EXPORT,
     TESORERIA_TMP_SUFFIX,
@@ -61,6 +63,14 @@ def construir_identidad_descarga(fila: Fila, codigo: str) -> IdentidadDescarga:
 
 
 GuardarTesoreria = Callable[[Path], None]
+
+
+def _id_boton_tesoreria(formato: str) -> str:
+    if formato == "pdf":
+        return ID_TESORERIA_BTN_PDF
+    if formato == "xls":
+        return ID_TESORERIA_BTN_EXCEL
+    raise ValueError("formato invalido")
 
 
 def guardar_reporte_tesoreria(
@@ -96,6 +106,28 @@ def guardar_reporte_tesoreria(
         except OSError:
             pass
         return ResultadoPromocionTesoreria(False, "formato invalido", destino)
+
+
+def exportar_reporte_tesoreria(
+    *, page: Page, destino: Path, formato: str, timeout_s: float
+) -> ResultadoPromocionTesoreria:
+    """Exporta Tesoreria desde la pagina actual y promueve via candidato."""
+    if formato not in TESORERIA_FORMATOS_EXPORT:
+        return ResultadoPromocionTesoreria(False, "formato invalido", destino)
+    boton_id = _id_boton_tesoreria(formato)
+    timeout_ms = int(timeout_s * 1000)
+
+    def guardar(candidato: Path) -> None:
+        with page.expect_download(timeout=timeout_ms) as dl_info:
+            page.evaluate(f"document.getElementById('{boton_id}').click();")
+        download = dl_info.value
+        download.save_as(str(candidato))
+
+    return guardar_reporte_tesoreria(
+        destino=destino,
+        formato=formato,
+        guardar=guardar,
+    )
 
 
 def cerrar_tabs_pdf(context: BrowserContext) -> None:

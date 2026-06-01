@@ -1,11 +1,23 @@
 from __future__ import annotations
 
+import datetime as dt
+import io
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
+from rich.console import Console
 
-from suvalor.orquestador import sincronizar_tesoreria_plan
+import suvalor.orquestador as orq
+from suvalor.orquestador import (
+    ResumenTesoreria,
+    sincronizar_tesoreria,
+    sincronizar_tesoreria_plan,
+)
+from suvalor.pagina import CuentaTesoreriaNoEncontrada
+from suvalor.tesoreria import ResultadoPromocionTesoreria
 from suvalor.tesoreria import construir_plan_tesoreria
+from suvalor.timings import MemoriaTimings
 
 
 def _pdf_valido(marca: bytes = b"actual") -> bytes:
@@ -122,4 +134,99 @@ def test_resumen_tesoreria_no_expone_account_raw(tmp_path):
 
     assert resumen.fallidos == 1
     assert raw_account not in repr(resumen)
+    assert raw_account not in str(resumen.detalle_fallidos)
+
+
+class FakeMem:
+    def __init__(self):
+        self.medidas: list[tuple[str, float]] = []
+
+    def timeout_ms(self, _op: str) -> int:
+        return 1000
+
+    def registrar(self, op: str, ms: float) -> None:
+        self.medidas.append((op, ms))
+
+
+def test_sincronizar_tesoreria_page_prepara_y_exporta(monkeypatch, tmp_path):
+    plan = _plan(tmp_path, formato="xls")
+    llamadas: list[tuple[str, object]] = []
+
+    monkeypatch.setattr(
+        orq,
+        "goto_robusto",
+        lambda *args, **kwargs: llamadas.append(
+            ("goto", args[1] if len(args) > 1 else kwargs.get("url"))
+        ),
+    )
+    monkeypatch.setattr(
+        orq,
+        "dismiss_componentart_banner",
+        lambda *args, **kwargs: llamadas.append(("banner", None)),
+    )
+
+    def preparar(
+        _page, *, desde: dt.date, hasta: dt.date, account: str | None = None
+    ) -> None:
+        llamadas.append(("preparar", (desde, hasta, account)))
+
+    def exportar(*, page, destino: Path, formato: str, timeout_s: float):
+        llamadas.append(("exportar", (destino.name, formato, timeout_s)))
+        return ResultadoPromocionTesoreria(True, "", destino)
+
+    monkeypatch.setattr(orq, "preparar_tesoreria", preparar)
+    monkeypatch.setattr(orq, "exportar_reporte_tesoreria", exportar)
+
+    mem = FakeMem()
+    resumen = sincronizar_tesoreria(
+        page=cast(Any, object()),
+        plan=plan,
+        mem=cast(MemoriaTimings, mem),
+        console=Console(file=io.StringIO()),
+        account="Cuenta Privada 123",
+    )
+
+    assert resumen == ResumenTesoreria(nuevos=1, saltados=0, fallidos=0, total=1)
+    assert llamadas[0][0] == "goto"
+    assert llamadas[2] == (
+        "preparar",
+        (dt.date(2026, 1, 1), dt.date(2026, 1, 31), "Cuenta Privada 123"),
+    )
+    assert llamadas[3][0] == "exportar"
+    assert mem.medidas[0][0] == "tesoreria"
+
+
+def test_sincronizar_tesoreria_page_no_filtra_account_si_no_encuentra(
+    monkeypatch, tmp_path
+):
+    raw_account = "Cuenta Privada 123"
+    plan = construir_plan_tesoreria(
+        base=tmp_path,
+        desde_iso="2026-01-01",
+        hasta_iso="2026-01-31",
+        formato="xls",
+        account=raw_account,
+        tag="seguro",
+    )
+    monkeypatch.setattr(orq, "goto_robusto", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        orq, "dismiss_componentart_banner", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        orq,
+        "preparar_tesoreria",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            CuentaTesoreriaNoEncontrada(raw_account)
+        ),
+    )
+
+    resumen = sincronizar_tesoreria(
+        page=cast(Any, object()),
+        plan=plan,
+        mem=cast(MemoriaTimings, FakeMem()),
+        console=Console(file=io.StringIO()),
+        account=raw_account,
+    )
+
+    assert resumen.fallidos == 1
     assert raw_account not in str(resumen.detalle_fallidos)

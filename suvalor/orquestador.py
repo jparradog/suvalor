@@ -17,6 +17,7 @@ CLI las invoca en serie sobre una sola sesion de Playwright; los subcomandos
 individuales (`descargar`, `extractos`, `cartera`) son envoltorios que tambien
 las invocan despues de abrir browser + login_manual.
 """
+
 from __future__ import annotations
 
 import datetime as dt
@@ -40,7 +41,12 @@ from rich.progress import (
 from rich.table import Table
 
 from .config import Config
-from .descargador import Resultado, descargar_doc, tmp_path_default
+from .descargador import (
+    Resultado,
+    descargar_doc,
+    exportar_reporte_tesoreria,
+    tmp_path_default,
+)
 from .diagnosticos import sanitizar_diagnostico
 from .estado import (
     EstadoCorrida,
@@ -59,6 +65,7 @@ from .pagina import (
     goto_robusto,
     ir_a_pagina,
     login_manual,
+    preparar_tesoreria,
     reloguear_si_expiro,
     setear_filtros,
 )
@@ -84,6 +91,7 @@ from .tipos import (
     ID_DDL_CUENTA,
     ID_DDL_PERIODO,
     NOMBRES_TIPOS,
+    TESORERIA_URL,
 )
 
 
@@ -174,7 +182,84 @@ def sincronizar_tesoreria_plan(
     return resumen
 
 
-def _renderear_panel_rango(console: Console, rango: RangoFechas, tipos: list[str]) -> None:
+def sincronizar_tesoreria(
+    *,
+    page: Page,
+    plan: PlanTesoreria,
+    mem: MemoriaTimings,
+    console: Console,
+    account: str | None = None,
+    retry_doc: int = 1,
+) -> ResumenTesoreria:
+    """Ejecuta Tesoreria opt-in sobre una sesion ya autenticada."""
+    resumen = ResumenTesoreria(total=len(plan.destinos))
+    try:
+        goto_robusto(page, TESORERIA_URL, mem=mem, console=console)
+    except SessionExpired:
+        reloguear_si_expiro(page, console)
+        goto_robusto(page, TESORERIA_URL, mem=mem, console=console)
+    dismiss_componentart_banner(page, console)
+
+    idx_destino = 0
+    for desde, hasta in plan.rangos:
+        destinos_rango = plan.destinos[idx_destino : idx_destino + len(plan.formatos)]
+        idx_destino += len(plan.formatos)
+        pendientes: list[tuple[Path, str]] = []
+        for destino in destinos_rango:
+            formato = destino.suffix.lstrip(".")
+            if not debe_descargar_tesoreria(
+                destino, formato=formato, redownload=plan.redownload
+            ):
+                resumen.saltados += 1
+                continue
+            pendientes.append((destino, formato))
+        if not pendientes:
+            continue
+
+        try:
+            preparar_tesoreria(page, desde=desde, hasta=hasta, account=account)
+        except Exception as e:
+            if account:
+                motivo = "no pude preparar tesoreria"
+            else:
+                motivo = sanitizar_diagnostico(str(e) or "no pude preparar tesoreria")
+            for destino, _formato in pendientes:
+                resumen.fallidos += 1
+                resumen.detalle_fallidos.append((destino.name, motivo))
+            continue
+
+        for destino, formato in pendientes:
+            timeout_s = mem.timeout_ms("tesoreria") / 1000.0
+            ultimo_motivo = ""
+            for intento in range(max(1, retry_doc)):
+                with medir(mem, "tesoreria"):
+                    resultado = exportar_reporte_tesoreria(
+                        page=page,
+                        destino=destino,
+                        formato=formato,
+                        timeout_s=timeout_s,
+                    )
+                if resultado.ok:
+                    resumen.nuevos += 1
+                    console.print(f"  [green][ok ][/green] {destino.name}")
+                    break
+                ultimo_motivo = resultado.motivo or "exportacion fallo"
+                if intento < max(1, retry_doc) - 1:
+                    console.print(
+                        f"  [yellow][retry {intento + 1}/{max(1, retry_doc)}][/yellow] "
+                        f"tesoreria {destino.name}"
+                    )
+            else:
+                resumen.fallidos += 1
+                motivo_visible = sanitizar_diagnostico(ultimo_motivo)
+                resumen.detalle_fallidos.append((destino.name, motivo_visible))
+                console.print(f"  [red][FAIL][/red] {destino.name}: {motivo_visible}")
+    return resumen
+
+
+def _renderear_panel_rango(
+    console: Console, rango: RangoFechas, tipos: list[str]
+) -> None:
     titulo = f"Rango {rango.desde_dmy} -> {rango.hasta_dmy}"
     body = f"Tipos a procesar: [bold]{', '.join(tipos)}[/bold]"
     console.print(Panel(body, title=titulo, border_style="cyan"))
@@ -196,8 +281,13 @@ def correr(
     """
     login_manual(page, console)
     return _correr_loop(
-        context=context, page=page, opciones=opciones,
-        inventario=inventario, estado=estado, mem=mem, console=console,
+        context=context,
+        page=page,
+        opciones=opciones,
+        inventario=inventario,
+        estado=estado,
+        mem=mem,
+        console=console,
     )
 
 
@@ -373,8 +463,12 @@ def _procesar_paginas(
         paginas_procesadas += 1
 
 
-def renderear_resumen(console: Console, resumen: ResumenCorrida, inventario: Inventario) -> None:
-    tabla = Table(title="Resumen de la corrida", show_header=True, header_style="bold cyan")
+def renderear_resumen(
+    console: Console, resumen: ResumenCorrida, inventario: Inventario
+) -> None:
+    tabla = Table(
+        title="Resumen de la corrida", show_header=True, header_style="bold cyan"
+    )
     tabla.add_column("Metrica")
     tabla.add_column("Valor", justify="right")
 
@@ -397,15 +491,17 @@ def persistir_estado(
 ) -> None:
     guardar_inventario(inventario)
     estado.ultima_corrida = dt.date.today().isoformat()
-    estado.rangos_consultados.append({
-        "fecha": estado.ultima_corrida,
-        "tipos": resumen.tipos,
-        "rangos": [(r.desde_dmy, r.hasta_dmy) for r in resumen.rangos],
-        "nuevos_esta_corrida": resumen.nuevos,
-        "saltados_esta_corrida": resumen.saltados,
-        "fallidos_esta_corrida": resumen.fallidos,
-        "total_inventario": len(inventario),
-    })
+    estado.rangos_consultados.append(
+        {
+            "fecha": estado.ultima_corrida,
+            "tipos": resumen.tipos,
+            "rangos": [(r.desde_dmy, r.hasta_dmy) for r in resumen.rangos],
+            "nuevos_esta_corrida": resumen.nuevos,
+            "saltados_esta_corrida": resumen.saltados,
+            "fallidos_esta_corrida": resumen.fallidos,
+            "total_inventario": len(inventario),
+        }
+    )
     guardar_estado(estado)
 
 
@@ -426,8 +522,13 @@ def sincronizar_documentos(
 ) -> ResumenCorrida:
     """Sincroniza documentos contables. Asume `page` ya autenticado."""
     return _correr_loop(
-        context=context, page=page, opciones=opciones,
-        inventario=inventario, estado=estado, mem=mem, console=console,
+        context=context,
+        page=page,
+        opciones=opciones,
+        inventario=inventario,
+        estado=estado,
+        mem=mem,
+        console=console,
     )
 
 
@@ -556,7 +657,9 @@ def sincronizar_extractos(
                     # de download y guardar al destino con save_as.
                     with page.expect_download(timeout=int(timeout_s * 1000)) as dl_info:
                         try:
-                            page.goto(url, wait_until="domcontentloaded", timeout=15_000)
+                            page.goto(
+                                url, wait_until="domcontentloaded", timeout=15_000
+                            )
                         except Exception:
                             # Navegar a un PDF puede "abortar"
                             # (NS_BINDING_ABORTED) cuando el browser detecta

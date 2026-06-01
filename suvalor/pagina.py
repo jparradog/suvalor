@@ -11,23 +11,17 @@ Cubre:
 NOTA: la logica de descarga via `__doPostBack(...)` esta en `descargador.py`
 porque maneja el archivo en disco (tmp -> destino).
 """
+
 from __future__ import annotations
 
 import re
-import time
 import unicodedata
 from dataclasses import dataclass
 from typing import Optional
 
-from playwright.sync_api import Page, TimeoutError as PWTimeout
+from playwright.sync_api import Page
 from rich.console import Console
 from rich.prompt import Confirm
-from tenacity import (
-    Retrying,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
 
 from .timings import MemoriaTimings, medir
 from .tipos import (
@@ -35,6 +29,9 @@ from .tipos import (
     ID_BTN_CONSULTAR,
     ID_FECHA_FIN,
     ID_FECHA_INI,
+    ID_TESORERIA_CUENTA,
+    ID_TESORERIA_FECHA_FIN,
+    ID_TESORERIA_FECHA_INI,
     ID_TIPO_DOC,
     LOGIN_URL,
     SESSION_TERMINATED_HINT,
@@ -51,6 +48,14 @@ class NavegacionFallida(RuntimeError):
 
 class ErrorExtraccionFilas(RuntimeError):
     """La grilla no tiene la estructura esperada para extraer filas."""
+
+
+class FormularioTesoreriaNoDisponible(RuntimeError):
+    """La pagina Tesoreria no expone los controles esperados."""
+
+
+class CuentaTesoreriaNoEncontrada(RuntimeError):
+    """No se encontro la cuenta solicitada sin exponer su texto crudo."""
 
 
 @dataclass
@@ -81,14 +86,15 @@ def login_manual(page: Page, console: Console) -> None:
         "[/cyan]"
     )
     console.print(
-        "[cyan]>>> Cuando este autenticado en la sucursal virtual, regrese aqui."
-        "[/cyan]"
+        "[cyan]>>> Cuando este autenticado en la sucursal virtual, regrese aqui.[/cyan]"
     )
     try:
         page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=30_000)
     except Exception as e:
         console.print(f"[yellow]  [warn] goto login: {e}[/yellow]")
-    Confirm.ask("Presione ENTER cuando este autenticado", default=True, show_default=False)
+    Confirm.ask(
+        "Presione ENTER cuando este autenticado", default=True, show_default=False
+    )
     try:
         page.wait_for_load_state("domcontentloaded", timeout=10_000)
     except Exception:
@@ -129,7 +135,11 @@ def reloguear_si_expiro(page: Page, console: Console) -> None:
         page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=30_000)
     except Exception:
         pass
-    Confirm.ask("Presione ENTER cuando este autenticado nuevamente", default=True, show_default=False)
+    Confirm.ask(
+        "Presione ENTER cuando este autenticado nuevamente",
+        default=True,
+        show_default=False,
+    )
     page.wait_for_timeout(2_500)
     if detectar_sesion_expirada(page):
         raise SessionExpired("La sesion sigue cerrada despues del prompt manual.")
@@ -235,6 +245,61 @@ def consultar(page: Page, mem: MemoriaTimings) -> None:
         page.wait_for_timeout(int(espera_ms))
 
 
+def _dmy(fecha) -> str:
+    return fecha.strftime("%d/%m/%Y")
+
+
+def setear_filtros_tesoreria(page: Page, *, desde, hasta) -> None:
+    """Configura fechas de Tesoreria usando IDs evidenciados."""
+    ok = page.evaluate(
+        f"""
+        (args) => {{
+            const ini = document.getElementById('{ID_TESORERIA_FECHA_INI}');
+            const fin = document.getElementById('{ID_TESORERIA_FECHA_FIN}');
+            if (!ini || !fin) return false;
+            ini.value = args.fi;
+            fin.value = args.ff;
+            return true;
+        }}
+        """,
+        {"fi": _dmy(desde), "ff": _dmy(hasta)},
+    )
+    if not ok:
+        raise FormularioTesoreriaNoDisponible("controles de fecha no disponibles")
+
+
+def seleccionar_cuenta_tesoreria(page: Page, account: str) -> bool:
+    """Selecciona cuenta por substring sin devolver ni loguear labels crudos."""
+    return bool(
+        page.evaluate(
+            f"""
+            (label) => {{
+                const s = document.getElementById('{ID_TESORERIA_CUENTA}');
+                if (!s) return false;
+                const buscado = String(label || '').toUpperCase();
+                const opt = Array.from(s.options).find(
+                    o => o.textContent.toUpperCase().includes(buscado)
+                );
+                if (!opt) return false;
+                s.value = opt.value;
+                s.dispatchEvent(new Event('change', {{bubbles: true}}));
+                return true;
+            }}
+            """,
+            account.strip(),
+        )
+    )
+
+
+def preparar_tesoreria(page: Page, *, desde, hasta, account: str | None = None) -> None:
+    """Deja listo el formulario Tesoreria para exportar un rango."""
+    if account is not None:
+        if not seleccionar_cuenta_tesoreria(page, account):
+            raise CuentaTesoreriaNoEncontrada("cuenta tesoreria no encontrada")
+        page.wait_for_timeout(2_500)
+    setear_filtros_tesoreria(page, desde=desde, hasta=hasta)
+
+
 # --------------------------------------------------------------------------- #
 # Extraccion de filas / paginacion                                            #
 # --------------------------------------------------------------------------- #
@@ -277,7 +342,8 @@ Array.from(document.querySelectorAll('a[href*="Page$"]'))
 
 def _normalizar_header_grilla(texto: str) -> str:
     sin_acentos = "".join(
-        c for c in unicodedata.normalize("NFD", texto)
+        c
+        for c in unicodedata.normalize("NFD", texto)
         if unicodedata.category(c) != "Mn"
     )
     return re.sub(r"[^a-z0-9]+", "", sin_acentos.lower())
@@ -293,7 +359,9 @@ def _buscar_header(headers: list[str], aliases: set[str]) -> int:
     )
 
 
-def _extraer_filas_pb_desde_tabla(headers: list[str], rows: list[list[str]]) -> list[Fila]:
+def _extraer_filas_pb_desde_tabla(
+    headers: list[str], rows: list[list[str]]
+) -> list[Fila]:
     idx_papeleta = _buscar_header(
         headers, {"npapeleta", "nopapeleta", "numeropapeleta"}
     )

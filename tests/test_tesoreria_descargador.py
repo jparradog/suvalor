@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, cast
 
-from suvalor.descargador import guardar_reporte_tesoreria
+from suvalor.descargador import exportar_reporte_tesoreria, guardar_reporte_tesoreria
+from suvalor.tipos import ID_TESORERIA_BTN_EXCEL, ID_TESORERIA_BTN_PDF
 
 
 def _xls_valido(marca: str = "actual") -> str:
@@ -134,3 +136,106 @@ def test_guardar_reporte_tesoreria_reporta_error_si_no_crea_directorio(
     assert resultado.ok is False
     assert resultado.motivo == "no pude preparar candidato"
     assert not destino.exists()
+
+
+class FakeDownload:
+    def __init__(self, contenido: bytes):
+        self.contenido = contenido
+        self.saved_to: Path | None = None
+
+    def save_as(self, destino: str) -> None:
+        self.saved_to = Path(destino)
+        self.saved_to.write_bytes(self.contenido)
+
+
+class FakeDownloadInfo:
+    def __init__(self, download: FakeDownload):
+        self.value = download
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+class FakePage:
+    def __init__(self, contenido: bytes):
+        self.download = FakeDownload(contenido)
+        self.clicks: list[str] = []
+        self.timeouts: list[int] = []
+
+    def expect_download(self, *, timeout: int):
+        self.timeouts.append(timeout)
+        return FakeDownloadInfo(self.download)
+
+    def evaluate(self, script: str) -> None:
+        self.clicks.append(script)
+
+
+def test_exportar_reporte_tesoreria_excel_click_y_candidato_tmp(tmp_path):
+    destino = tmp_path / "Tesoreria" / "2026" / "movimientos.xls"
+    page = FakePage(_xls_valido().encode("utf-8"))
+
+    resultado = exportar_reporte_tesoreria(
+        page=cast(Any, page),
+        destino=destino,
+        formato="xls",
+        timeout_s=2.5,
+    )
+
+    assert resultado.ok is True
+    assert destino.read_text(encoding="utf-8") == _xls_valido()
+    assert ID_TESORERIA_BTN_EXCEL in page.clicks[0]
+    assert page.timeouts == [2500]
+    saved_to = page.download.saved_to
+    assert saved_to == destino.with_name(f"{destino.name}.tmp")
+    assert saved_to is not None
+    assert not saved_to.exists()
+
+
+def test_exportar_reporte_tesoreria_pdf_usa_boton_pdf(tmp_path):
+    destino = tmp_path / "Tesoreria" / "2026" / "movimientos.pdf"
+    page = FakePage(_pdf_valido())
+
+    resultado = exportar_reporte_tesoreria(
+        page=cast(Any, page),
+        destino=destino,
+        formato="pdf",
+        timeout_s=1.0,
+    )
+
+    assert resultado.ok is True
+    assert ID_TESORERIA_BTN_PDF in page.clicks[0]
+
+
+def test_exportar_reporte_tesoreria_no_data_no_crea_final(tmp_path):
+    destino = tmp_path / "Tesoreria" / "2026" / "movimientos.xls"
+    page = FakePage(b"Fecha\tDocumento\tDetalle\tObservacion\tValor\t\r\n")
+
+    resultado = exportar_reporte_tesoreria(
+        page=cast(Any, page),
+        destino=destino,
+        formato="xls",
+        timeout_s=1.0,
+    )
+
+    assert resultado.ok is False
+    assert destino.exists() is False
+    assert not destino.with_name(f"{destino.name}.tmp").exists()
+
+
+def test_exportar_reporte_tesoreria_formato_invalido_no_clickea(tmp_path):
+    destino = tmp_path / "Tesoreria" / "2026" / "movimientos.csv"
+    page = FakePage(b"x")
+
+    resultado = exportar_reporte_tesoreria(
+        page=cast(Any, page),
+        destino=destino,
+        formato="csv",
+        timeout_s=1.0,
+    )
+
+    assert resultado.ok is False
+    assert resultado.motivo == "formato invalido"
+    assert page.clicks == []
