@@ -214,6 +214,30 @@ Misma logica de retry si falla.
 
 Si ves valor en agregar alguno de estos, abre un issue antes de empezar.
 
+### ReteFuente certificate investigation
+
+- Estado: **investigacion solamente / deshabilitado / no soportado**.
+  No existe comando `suvalor retefuente`, flag experimental, integracion en
+  `sync`, ni flujo de descarga runtime.
+- Endpoint observado: `/operaciones/reteFuente.aspx`.
+- Controles observados: `ddlAnioRetencion` y `btnDescargarPDF`.
+- Resultado del probe manual redacted: hacer click en `btnDescargarPDF`
+  produjo **sin descarga / no download** y **sin popup / no popup**. Este
+  resultado es inconcluso; no debe reportarse como certificado descargado.
+- Gate de evidencia antes de automatizar: documentar selectores redacted,
+  DevTools/Network o red equivalente, request URL sin query sensible,
+  metodo, status, `content-type`, `content-disposition`, tamano, redirect
+  chain, y bytes `%PDF-` con `%%EOF` o un estado clasificado de
+  `sin certificado` / no-certificate.
+- Expiracion de sesion: login redirect, expired-session o sesion expirada es
+  un resultado separado. No debe disparar reautenticacion automatica ni
+  manejo de credenciales, OTP, captcha o teclado virtual.
+- Privacidad/redaccion obligatoria: no incluir IDs de cliente, COYD,
+  numeros de cuenta, nombres, screenshots, paths personales, credenciales,
+  OTP, captcha, teclado virtual, cookies, tokens ni datos de sesion.
+- GMF: fuera de alcance. Evidencia manual indica redirect/unavailable hacia
+  `mensajes.aspx?id=000-01`; no es un flujo de certificado soportado.
+
 ---
 
 ## Anti-deteccion (Playwright)
