@@ -75,9 +75,10 @@ CONFIG_FILE: Path = STATE_DIR / "config.toml"
 LOG_FILE: Path = STATE_DIR / "run.log"
 FALLOS_TSV: Path = FALLIDOS_DIR / "fallos.tsv"
 
-# --- Carpetas de salida (subcomandos extractos / cartera) ---
+# --- Carpetas de salida (subcomandos extractos / cartera / fondos) ---
 EXTRACTOS_DIR: Path = BASE / "Extractos"
 CARTERA_DIR: Path = BASE / "Cartera"
+FONDOS_DIR: Path = BASE / "Fondos"
 
 # --- URLs ---
 LOGIN_URL = "https://www.suvalor.com/operaciones/login.aspx"
@@ -93,6 +94,7 @@ EXTRACTO_PDF_URL = (
     "https://www.suvalor.com/consultas/pdfExtractoConsolidado.aspx?id={id}"
 )
 CARTERA_URL = "https://www.suvalor.com/consultas/portafolioConsolidado.aspx"
+FONDOS_URL = "https://www.suvalor.com/consultas/InformeFondos.aspx"
 
 # --- Nombre del archivo temporal que escribe el visor (descargas docs) ---
 # El sitio descarga siempre con este nombre fijo en la carpeta `BASE`.

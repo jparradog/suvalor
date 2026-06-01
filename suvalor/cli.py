@@ -61,6 +61,7 @@ from .pagina import (
     setear_filtros,
 )
 from .descargador import Resultado, descargar_doc, tmp_path_default
+from .fondos import construir_plan_fondos
 from .rangos import rangos_para_corrida, resumir_rangos
 from .timings import MemoriaTimings
 from .tipos import (
@@ -569,6 +570,56 @@ def timings() -> None:
             f"{mem.timeout_ms(op)/1000:.1f}",
         )
     console.print(tabla)
+
+
+# --------------------------------------------------------------------------- #
+# Comando: fondos                                                             #
+# --------------------------------------------------------------------------- #
+
+
+@app.command()
+def fondos(
+    desde: str = typer.Option(..., "--from", help="Fecha desde YYYY-MM-DD."),
+    hasta: str = typer.Option(..., "--to", help="Fecha hasta YYYY-MM-DD."),
+    tag: Optional[str] = typer.Option(
+        None,
+        "--tag",
+        help="Tag seguro solo para desambiguar el nombre de archivo.",
+    ),
+    redownload: bool = typer.Option(
+        False,
+        "--redownload",
+        help="Reemplazar reportes existentes solo cuando el nuevo sea valido.",
+    ),
+) -> None:
+    """Prepara descarga opt-in de movimientos de fondos (fail-closed)."""
+    try:
+        plan = construir_plan_fondos(
+            base=BASE,
+            desde_iso=desde,
+            hasta_iso=hasta,
+            tag=tag or "",
+            redownload=redownload,
+        )
+    except ValueError as e:
+        console.print(f"[red]ERROR:[/red] {e}")
+        raise typer.Exit(code=2)
+
+    console.print(
+        Panel(
+            f"Rangos: [cyan]{len(plan.rangos)}[/cyan]\n"
+            f"Destino ejemplo: [cyan]{plan.destinos[0].relative_to(BASE)}[/cyan]\n"
+            "Scope v1: cuenta default del portal + fondo TODOS; "
+            "--tag no selecciona cuenta/fondo.",
+            title="Fondos",
+            border_style="cyan",
+        )
+    )
+    console.print(
+        "[yellow]Automatizacion de Fondos deshabilitada:[/yellow] falta "
+        "evidencia redacted de selectores en docs/SITE_NOTES.md."
+    )
+    raise typer.Exit(code=3)
 
 
 # --------------------------------------------------------------------------- #

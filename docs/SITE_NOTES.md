@@ -233,7 +233,7 @@ Misma logica de retry si falla.
 |---|---|---|
 | Movimientos de Tesoreria | `/consultas/consultarMovimientoTesoreria.aspx` | Form con FechaInicial/FechaFinal + selector cuenta + botones PDF (`btnMovTesoreriaPDF`) y Excel (`btnMovTesoreriaExcel`). Util para flujo de caja. |
 | Movimientos Wompi | `/consultas/MovimientosWompi.aspx` | No explorado. |
-| Informe movimientos fondos | `/consultas/InformeFondos.aspx` | No explorado. |
+| Informe movimientos fondos | `/consultas/InformeFondos.aspx` | Opt-in `suvalor fondos` preparado en modo fail-closed. Automatizacion de pagina deshabilitada hasta documentar evidencia redacted de inputs de fecha, accion de exportacion y marcador de sin datos. v1 usa cuenta default + fondo `TODOS`; no hay `--account` ni `--fund`. |
 | Suscripcion a documentos | `/operaciones/suscripcionDocumentos.aspx` | Form de suscripcion (no descarga). |
 
 Si ves valor en agregar alguno de estos, abre un issue antes de empezar.

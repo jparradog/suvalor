@@ -7,10 +7,13 @@ heuristicas detecten los falsos positivos mas comunes.
 
 from __future__ import annotations
 
+from zipfile import ZipFile
+
 import pytest
 
 from suvalor.verificacion import (
     es_pdf_valido,
+    es_reporte_fondos_valido,
     es_xls_html_valido,
     sanitizar_pdf_bytes,
     verificar_descarga,
@@ -213,6 +216,56 @@ class TestEsXlsHtmlValido:
 
 
 # --------------------------------------------------------------------------- #
+# es_reporte_fondos_valido                                                    #
+# --------------------------------------------------------------------------- #
+
+
+class TestEsReporteFondosValido:
+    def test_acepta_ole_xls(self, tmp_path):
+        p = tmp_path / "fondos.xls"
+        p.write_bytes(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"x" * 128)
+        assert es_reporte_fondos_valido(p) == (True, "")
+
+    def test_acepta_xlsx_con_workbook(self, tmp_path):
+        p = tmp_path / "fondos.xlsx"
+        with ZipFile(p, "w") as zf:
+            zf.writestr("[Content_Types].xml", "<Types />")
+            zf.writestr("xl/workbook.xml", "<workbook />")
+        assert es_reporte_fondos_valido(p) == (True, "")
+
+    def test_acepta_html_con_tabla(self, tmp_path):
+        p = tmp_path / "fondos.xls"
+        p.write_text(
+            "<html><body><table><tr><th>Fecha</th></tr><tr><td>2026-01-01</td></tr></table></body></html>"
+        )
+        assert es_reporte_fondos_valido(p) == (True, "")
+
+    @pytest.mark.parametrize("sep", [",", ";", "\t"])
+    def test_acepta_texto_delimitado_con_header_y_fila(self, tmp_path, sep):
+        p = tmp_path / "fondos.xls"
+        p.write_text(f"Fecha{sep}Valor\n2026-01-01{sep}100\n", encoding="utf-8")
+        assert es_reporte_fondos_valido(p) == (True, "")
+
+    @pytest.mark.parametrize(
+        "contenido",
+        [
+            "<html><body>Iniciar sesion<table><tr><td>x</td></tr></table></body></html>",
+            "<html><body>Error de aplicacion<table><tr><td>x</td></tr></table></body></html>",
+            "solo una linea sin delimitador",
+            "Fecha,Valor\n2026-01-01\n",
+            "PK-no-es-zip-valido",
+            "\x00\x01\x02\x03",
+        ],
+    )
+    def test_rechaza_login_error_malformed_y_magic_invalida(self, tmp_path, contenido):
+        p = tmp_path / "fondos.xls"
+        p.write_text(contenido, encoding="utf-8")
+        ok, motivo = es_reporte_fondos_valido(p)
+        assert ok is False
+        assert motivo
+
+
+# --------------------------------------------------------------------------- #
 # verificar_descarga: despachador                                             #
 # --------------------------------------------------------------------------- #
 
@@ -233,6 +286,13 @@ class TestVerificarDescarga:
         )
         ok, motivo = verificar_descarga(p, "xls_html")
         assert ok is True
+
+    def test_despacha_a_fondos(self, tmp_path):
+        p = tmp_path / "fondos.xls"
+        p.write_text("Fecha\tValor\n2026-01-01\t100\n", encoding="utf-8")
+        ok, motivo = verificar_descarga(p, "fondos")
+        assert ok is True
+        assert motivo == ""
 
     def test_tipo_desconocido_falla(self, tmp_path):
         p = tmp_path / "x.bin"

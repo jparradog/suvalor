@@ -21,6 +21,7 @@ mas frecuentes de falso positivo:
 from __future__ import annotations
 
 from pathlib import Path
+from zipfile import BadZipFile, ZipFile
 
 from .diagnosticos import clasificar_fallo_portal
 
@@ -40,6 +41,13 @@ _HTML_LOGIN_HINTS = (
     "iniciar sesión",
     "login",
 )
+_FONDOS_ERROR_HINTS = _HTML_LOGIN_HINTS + (
+    "error",
+    "gateway timeout",
+    "request could not be satisfied",
+    "sesion expirada",
+)
+_OLE_XLS_HEADER = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 
 
 def sanitizar_pdf_bytes(data: bytes) -> bytes:
@@ -169,6 +177,67 @@ def es_xls_html_valido(path: Path, min_bytes: int = 2048) -> tuple[bool, str]:
     return True, ""
 
 
+def _contiene_hint_error_fondos(texto: str) -> str | None:
+    bajo = texto.lower()
+    for hint in _FONDOS_ERROR_HINTS:
+        if hint in bajo:
+            return hint
+    return None
+
+
+def _es_xlsx_valido(path: Path) -> bool:
+    try:
+        with ZipFile(path) as zf:
+            nombres = set(zf.namelist())
+    except (BadZipFile, OSError):
+        return False
+    return "[Content_Types].xml" in nombres and "xl/workbook.xml" in nombres
+
+
+def _es_texto_delimitado_valido(texto: str) -> bool:
+    lineas = [ln.strip() for ln in texto.splitlines() if ln.strip()]
+    if len(lineas) < 2:
+        return False
+    for sep in ("\t", ";", ","):
+        if sep not in lineas[0]:
+            continue
+        columnas = len(lineas[0].split(sep))
+        if columnas < 2:
+            continue
+        if all(len(ln.split(sep)) == columnas for ln in lineas[1:]):
+            return True
+    return False
+
+
+def es_reporte_fondos_valido(path: Path) -> tuple[bool, str]:
+    """Valida reportes XLS/tabulares de Fondos sin depender de Playwright."""
+    if not path.exists():
+        return False, "archivo no existe"
+    try:
+        raw = path.read_bytes()
+    except OSError as e:
+        return False, f"error leyendo: {e}"
+    if not raw:
+        return False, "size=0 bytes"
+    if raw.startswith(_OLE_XLS_HEADER):
+        return True, ""
+    if raw.startswith(b"PK"):
+        return (True, "") if _es_xlsx_valido(path) else (False, "xlsx malformado")
+
+    if b"\x00" in raw[:256]:
+        return False, "magic bytes no reconocidos"
+    texto = raw.decode("utf-8", errors="ignore")
+    hint = _contiene_hint_error_fondos(texto)
+    if hint:
+        return False, f"contiene '{hint}' (probable respuesta de error/login)"
+    bajo = texto.lower()
+    if "<html" in bajo or "<!doctype" in bajo:
+        return (True, "") if "<table" in bajo else (False, "html sin tabla")
+    if _es_texto_delimitado_valido(texto):
+        return True, ""
+    return False, "formato de reporte fondos no reconocido"
+
+
 def verificar_descarga(path: Path, tipo: str) -> tuple[bool, str]:
     """Despachador segun el `tipo` esperado del archivo.
 
@@ -181,4 +250,6 @@ def verificar_descarga(path: Path, tipo: str) -> tuple[bool, str]:
         return es_pdf_valido(path)
     if tipo == "xls_html":
         return es_xls_html_valido(path)
+    if tipo == "fondos":
+        return es_reporte_fondos_valido(path)
     return False, f"tipo de verificacion desconocido: {tipo!r}"
