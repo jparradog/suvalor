@@ -6,8 +6,11 @@ construccion del plan y del CLI (ayuda, deteccion de subcomandos, etc.).
 
 from __future__ import annotations
 
+from io import StringIO
+
 import pytest
 import typer
+from rich.console import Console
 from typer.testing import CliRunner
 
 import suvalor.cli as cli_mod
@@ -350,6 +353,42 @@ class TestRenderearResumen:
             res_cart=None,
             err_cart="No pude llegar a portafolio",
         )
+
+    def test_detalle_fallidos_sanitiza_motivos(self, monkeypatch):
+        salida = StringIO()
+        monkeypatch.setattr(
+            cli_mod,
+            "console",
+            Console(file=salida, force_terminal=False, color_system=None, width=120),
+        )
+        plan = _PlanSync(do_docs=True, do_extractos=False, do_cartera=False)
+        rdocs = ResumenCorrida(
+            nuevos=0,
+            saltados=0,
+            fallidos=1,
+            detalle_fallidos=[
+                (
+                    "FB_12345",
+                    "GET https://portal.example/VerDocumentoElectronico.aspx?jwt=secreto&Cd=FB status HTTP 504",
+                )
+            ],
+        )
+
+        _renderear_resumen_sync(
+            plan=plan,
+            res_docs=rdocs,
+            err_docs=None,
+            res_ext=None,
+            err_ext=None,
+            res_cart=None,
+            err_cart=None,
+        )
+
+        texto = salida.getvalue()
+        assert "portal respondio HTTP 504 (CloudFront Gateway Timeout)" in texto
+        assert "https://" not in texto
+        assert "jwt=" not in texto
+        assert "secreto" not in texto
 
 
 # --------------------------------------------------------------------------- #

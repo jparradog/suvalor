@@ -20,6 +20,8 @@ from suvalor.estado import (
     cargar_inventario,
     guardar_estado,
     guardar_inventario,
+    leer_fallos_pendientes,
+    registrar_fallo,
 )
 
 
@@ -110,3 +112,15 @@ def test_inventario_reconstruye_desde_pdfs(state_dir):
     inv = cargar_inventario()
     assert "RC_999" in inv
     assert "NC_888" in inv
+
+
+def test_registrar_fallo_mantiene_schema_legacy_de_cinco_columnas(tmp_path, monkeypatch):
+    fallos_tsv = tmp_path / "_Fallidos" / "fallos.tsv"
+    monkeypatch.setattr(estado_mod, "FALLOS_TSV", fallos_tsv)
+
+    registrar_fallo("FB", "12345", {"fecha": "05/04/2025", "valor": "0", "motivo": "no persistir"})
+
+    header = fallos_tsv.read_text(encoding="utf-8").splitlines()[0].split("	")
+    assert header == ["timestamp", "tipo", "doc_num", "fecha_doc", "valor"]
+    assert set(leer_fallos_pendientes()[0]) == set(header)
+    assert "motivo" not in leer_fallos_pendientes()[0]

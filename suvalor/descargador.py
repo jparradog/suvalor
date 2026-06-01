@@ -9,6 +9,7 @@ La logica es exacta del monolito (NO cambiar):
 
 Se reintenta `retry_doc` veces; si todas fallan, se registra en fallos.tsv.
 """
+
 from __future__ import annotations
 
 import time
@@ -19,6 +20,7 @@ from typing import Optional
 from playwright.sync_api import BrowserContext, Error as PWError, Page
 from rich.console import Console
 
+from .diagnosticos import diagnosticar_fallo_portal, sanitizar_diagnostico
 from .estado import Inventario, registrar_fallo
 from .parseo import parsear_fecha_grilla
 from .pagina import Fila, detectar_sesion_expirada
@@ -62,9 +64,7 @@ def cerrar_tabs_pdf(context: BrowserContext) -> None:
 
 
 def _disparar_postback(page: Page, idx: int) -> None:
-    page.evaluate(
-        f"__doPostBack('{POSTBACK_TARGET_GV}','Select${idx}');"
-    )
+    page.evaluate(f"__doPostBack('{POSTBACK_TARGET_GV}','Select${idx}');")
 
 
 def _esperar_tmp(tmp_path: Path, timeout_s: float, paso_s: float = 1.0) -> bool:
@@ -177,11 +177,16 @@ def _descargar_via_popup_o_download(
     # Descargar via context.request - reutiliza cookies de la sesion.
     try:
         resp = page.context.request.get(url, timeout=timeout_ms)
+        body = resp.body()
         if resp.status != 200:
-            return False, f"status HTTP {resp.status}"
-        destino.write_bytes(resp.body())
+            return False, diagnosticar_fallo_portal(
+                status=resp.status,
+                contenido=body,
+                detalle=f"status HTTP {resp.status}",
+            )
+        destino.write_bytes(body)
     except PWError as e:
-        return False, f"fallo HTTP get: {e}"
+        return False, sanitizar_diagnostico(f"fallo HTTP get: {e}")
     finally:
         try:
             popup.close()
@@ -228,7 +233,8 @@ def descargar_doc(
     p95_s = mem.p95_ms("descarga") / 1000.0
 
     ultimo_motivo = ""
-    for intento in range(retry_doc):
+    intentos_max = max(1, retry_doc)
+    for intento in range(intentos_max):
         if console and intento == 0:
             console.print(
                 f"  [cyan][...] Esperando descarga (p95: {p95_s:.1f}s, "
@@ -246,7 +252,7 @@ def descargar_doc(
             )
         except Exception as e:
             mem.registrar("descarga", (time.perf_counter() - t0) * 1000.0)
-            ultimo_motivo = f"error inesperado en descarga: {e}"
+            ultimo_motivo = sanitizar_diagnostico(f"error inesperado en descarga: {e}")
             cerrar_tabs_pdf(page.context)
             if detectar_sesion_expirada(page):
                 if console:
@@ -256,9 +262,9 @@ def descargar_doc(
                 if motivos_fallidos is not None:
                     motivos_fallidos.append((clave_inv, "sesion expirada"))
                 return Resultado.FAIL
-            if intento < retry_doc - 1 and console:
+            if intento < intentos_max - 1 and console:
                 console.print(
-                    f"  [yellow][retry {intento + 1}/{retry_doc}][/yellow] "
+                    f"  [yellow][retry {intento + 1}/{intentos_max}][/yellow] "
                     f"{clave_inv} (excepcion)"
                 )
             continue
@@ -266,7 +272,10 @@ def descargar_doc(
         mem.registrar("descarga", (time.perf_counter() - t0) * 1000.0)
 
         if not ok_dl:
-            ultimo_motivo = f"no aparecio el archivo (timeout): {motivo_dl}"
+            ultimo_motivo = diagnosticar_fallo_portal(
+                detalle=motivo_dl,
+                fallback="no aparecio el archivo (timeout)",
+            )
             cerrar_tabs_pdf(page.context)
             if detectar_sesion_expirada(page):
                 if console:
@@ -276,10 +285,10 @@ def descargar_doc(
                 if motivos_fallidos is not None:
                     motivos_fallidos.append((clave_inv, "sesion expirada"))
                 return Resultado.FAIL
-            if intento < retry_doc - 1 and console:
+            if intento < intentos_max - 1 and console:
                 console.print(
-                    f"  [yellow][retry {intento + 1}/{retry_doc}][/yellow] "
-                    f"{clave_inv} ({motivo_dl})"
+                    f"  [yellow][retry {intento + 1}/{intentos_max}][/yellow] "
+                    f"{clave_inv} ({ultimo_motivo})"
                 )
             continue
 
@@ -287,30 +296,33 @@ def descargar_doc(
         if not destino.exists():
             ultimo_motivo = "descarga no escribio el archivo"
             if console:
+                console.print(f"  [yellow][warn] {ultimo_motivo}[/yellow]")
+            if intento < intentos_max - 1 and console:
                 console.print(
-                    f"  [yellow][warn] {ultimo_motivo}[/yellow]"
-                )
-            if intento < retry_doc - 1 and console:
-                console.print(
-                    f"  [yellow][retry {intento + 1}/{retry_doc}][/yellow] {clave_inv}"
+                    f"  [yellow][retry {intento + 1}/{intentos_max}][/yellow] {clave_inv}"
                 )
             continue
 
         ok_ver, motivo = verificar_descarga(destino, "pdf")
         if not ok_ver:
-            ultimo_motivo = motivo
+            contenido = destino.read_bytes() if destino.exists() else None
+            ultimo_motivo = diagnosticar_fallo_portal(
+                contenido=contenido,
+                detalle=motivo,
+                fallback=motivo or "verificacion fallo",
+            )
             if console:
                 console.print(
-                    f"  [yellow][warn] verificacion fallo:[/yellow] {motivo}"
+                    f"  [yellow][warn] verificacion fallo:[/yellow] {ultimo_motivo}"
                 )
             try:
                 destino.unlink(missing_ok=True)
             except TypeError:
                 if destino.exists():
                     destino.unlink()
-            if intento < retry_doc - 1 and console:
+            if intento < intentos_max - 1 and console:
                 console.print(
-                    f"  [yellow][retry {intento + 1}/{retry_doc}][/yellow] "
+                    f"  [yellow][retry {intento + 1}/{intentos_max}][/yellow] "
                     f"{clave_inv} (verificacion)"
                 )
             continue

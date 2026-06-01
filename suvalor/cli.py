@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
-import logging
 import sys
 from pathlib import Path
 from typing import Optional
@@ -29,8 +28,8 @@ from rich.table import Table
 
 from . import __version__
 from .config import Config, escribir_template
+from .diagnosticos import diagnosticar_fallo_portal
 from .estado import (
-    InventarioExtractos,
     cargar_estado,
     cargar_inventario,
     cargar_inventario_extractos,
@@ -59,33 +58,19 @@ from .pagina import (
     extraer_filas,
     goto_robusto,
     login_manual,
-    reloguear_si_expiro,
     setear_filtros,
 )
-from .descargador import Resultado, descargar_doc, poll_archivo, tmp_path_default
-from .parseo import mes_es_a_iso
+from .descargador import Resultado, descargar_doc, tmp_path_default
 from .rangos import rangos_para_corrida, resumir_rangos
-from .timings import MemoriaTimings, medir
+from .timings import MemoriaTimings
 from .tipos import (
     BASE,
     CARTERA_DIR,
-    CARTERA_TMP_FILENAME,
-    CARTERA_URL,
     CONSULTA_URL,
-    EXTRACTO_PDF_URL,
-    EXTRACTO_TMP_PATTERN,
-    EXTRACTOS_DIR,
-    EXTRACTOS_URL,
-    ID_BTN_EXCEL,
-    ID_DDL_CUENTA,
-    ID_DDL_PERIODO,
     LOG_FILE,
     NOMBRES_TIPOS,
-    STATE_DIR,
-    TIPOS_DEFAULT,
     TIPOS_LEGACY_NO_DISPONIBLES,
     TIPOS_SELECTOR_ACTUALES,
-    TipoDoc,
 )
 
 _HELP = """\
@@ -107,6 +92,23 @@ app = typer.Typer(
     rich_markup_mode="rich",
 )
 console = Console()
+
+
+def _motivo_visible(motivo: str) -> str:
+    """Normaliza y sanitiza motivos antes de mostrarlos al usuario."""
+    return diagnosticar_fallo_portal(detalle=motivo, fallback=motivo)
+
+
+def _renderear_detalle_fallidos_docs(
+    console: Console, detalles: list[tuple[str, str]]
+) -> None:
+    if not detalles:
+        return
+    console.print("[bold]Detalle fallidos:[/bold]")
+    for clave, motivo in detalles:
+        console.print(
+            f"  Documentos -> Fallo verificacion: {clave} ({_motivo_visible(motivo)})"
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -309,6 +311,7 @@ def descargar(
     renderear_resumen(console, resumen, inventario)
     if resumen.fallidos > 0:
         from .tipos import FALLOS_TSV
+        _renderear_detalle_fallidos_docs(console, list(resumen.detalle_fallidos))
         console.print(f"[yellow]Fallos esta corrida en:[/yellow] {FALLOS_TSV}")
 
 
@@ -778,11 +781,17 @@ def _renderear_resumen_sync(
     if motivos_docs or motivos_ext or motivo_cart:
         console.print("[bold]Detalle fallidos:[/bold]")
         for clave, motivo in motivos_docs:
-            console.print(f"  Documentos -> Fallo verificacion: {clave} ({motivo})")
+            console.print(
+                f"  Documentos -> Fallo verificacion: {clave} ({_motivo_visible(motivo)})"
+            )
         for clave, motivo in motivos_ext:
-            console.print(f"  Extractos  -> Fallo verificacion: {clave} ({motivo})")
+            console.print(
+                f"  Extractos  -> Fallo verificacion: {clave} ({_motivo_visible(motivo)})"
+            )
         if motivo_cart:
-            console.print(f"  Cartera    -> Fallo verificacion: {motivo_cart}")
+            console.print(
+                f"  Cartera    -> Fallo verificacion: {_motivo_visible(motivo_cart)}"
+            )
 
 
 @app.command()

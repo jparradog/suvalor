@@ -17,9 +17,12 @@ mas frecuentes de falso positivo:
     - PDF truncado (sin marker `%%EOF` al final)
     - HTML de Portafolio.xls que en realidad es la pagina de login
 """
+
 from __future__ import annotations
 
 from pathlib import Path
+
+from .diagnosticos import clasificar_fallo_portal
 
 # Cuanto del final del PDF leemos para buscar el marker `%%EOF`.
 # El marker normalmente aparece en los ultimos ~50 bytes, pero algunos
@@ -83,6 +86,16 @@ def es_pdf_valido(path: Path, min_bytes: int = 2048) -> tuple[bool, str]:
 
     if size == 0:
         return False, "size=0 bytes"
+
+    try:
+        with path.open("rb") as f:
+            muestra_inicial = f.read(512)
+    except OSError as e:
+        return False, f"error leyendo: {e}"
+    motivo_portal = clasificar_fallo_portal(contenido=muestra_inicial)
+    if motivo_portal:
+        return False, motivo_portal
+
     if size < min_bytes:
         return False, f"size={size} bytes < min={min_bytes}"
 
@@ -94,7 +107,8 @@ def es_pdf_valido(path: Path, min_bytes: int = 2048) -> tuple[bool, str]:
                 resto = head + f.read(256 - len(_PDF_HEADER))
                 muestra = resto.lower()
                 if b"<html" in muestra or b"<!doctype" in muestra:
-                    return False, "es HTML (probable redirect a login)"
+                    motivo = clasificar_fallo_portal(contenido=resto)
+                    return False, motivo or "es HTML (probable redirect a login)"
                 return False, f"header no es %PDF- (head={head!r})"
 
             # leemos los ultimos `_PDF_TAIL_BYTES` para buscar el marker EOF

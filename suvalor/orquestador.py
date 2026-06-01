@@ -19,7 +19,6 @@ las invocan despues de abrir browser + login_manual.
 """
 from __future__ import annotations
 
-import dataclasses
 import datetime as dt
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -40,17 +39,14 @@ from rich.progress import (
 from rich.table import Table
 
 from .config import Config
-from .descargador import Resultado, descargar_doc, poll_archivo, tmp_path_default
+from .descargador import Resultado, descargar_doc, tmp_path_default
+from .diagnosticos import sanitizar_diagnostico
 from .estado import (
     EstadoCorrida,
     Inventario,
     InventarioExtractos,
-    cargar_estado,
-    cargar_inventario,
-    cargar_inventario_extractos,
     guardar_estado,
     guardar_inventario,
-    guardar_inventario_extractos,
 )
 from .pagina import (
     NavegacionFallida,
@@ -72,7 +68,6 @@ from .verificacion import verificar_descarga
 from .tipos import (
     BASE,
     CARTERA_DIR,
-    CARTERA_TMP_FILENAME,
     CARTERA_URL,
     CONSULTA_URL,
     EXTRACTO_PDF_URL,
@@ -302,11 +297,12 @@ def _procesar_paginas(
                     motivos_fallidos=motivos_fila,
                 )
             except Exception as e:
-                logger.exception(f"Error inesperado descargando {codigo} idx={fila.idx}: {e}")
-                resumen.fallidos += 1
-                resumen.detalle_fallidos.append(
-                    (f"{codigo}_{fila.doc_num}", f"{type(e).__name__}: {e}")
+                motivo = sanitizar_diagnostico(f"{type(e).__name__}: {e}")
+                logger.exception(
+                    f"Error inesperado descargando {codigo} idx={fila.idx}: {motivo}"
                 )
+                resumen.fallidos += 1
+                resumen.detalle_fallidos.append((f"{codigo}_{fila.doc_num}", motivo))
                 continue
 
             if resultado == Resultado.NUEVO:

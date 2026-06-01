@@ -110,6 +110,20 @@ BASE/
 - Smoke manual recomendado para mantenedor: `--smoke-test --max-docs 3 --types PB`.
   No ejecutar desde agentes ni pruebas automatizadas.
 
+### FB (Facturas de Bolsa) — 504 observado
+
+- FB permanece **opt-in** con `--types FB`; no forma parte de los defaults.
+- Evidencia manual redacted del issue #3 observo respuestas HTTP 504 / CloudFront
+  al intentar abrir PDFs FB. Esto no demuestra que FB sea imposible ni estable;
+  solo documenta el modo de fallo visto.
+- El cliente debe tratar 504/CloudFront o HTML guardado como `.pdf` como fallo
+  del portal: borrar el candidato invalido, no agregar inventario exitoso,
+  registrar el fallo en el TSV legacy y mostrar un motivo normalizado.
+- Los motivos visibles deben estar sanitizados: sin URL completa, query string,
+  `jwt`, tokens ni identificadores de sesion.
+- Smoke manual recomendado para mantenedor: `--smoke-test --max-docs 3 --types FB`.
+  No ejecutar desde agentes ni pruebas automatizadas.
+
 ### Adobe Acrobat extension — gotcha
 
 Si Chrome tiene la extension de Adobe Acrobat, los PDFs **NO disparan
