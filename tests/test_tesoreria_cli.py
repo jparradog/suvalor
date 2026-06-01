@@ -5,12 +5,25 @@ from typer.testing import CliRunner
 
 import suvalor.cli as cli_mod
 from suvalor.cli import app
+from suvalor.orquestador import ResumenTesoreria
 
 runner = CliRunner()
 
 
 def _no_browser(*args, **kwargs):
     pytest.fail("abrir_navegador no debe ejecutarse")
+
+
+class FakeBrowser:
+    def __init__(self):
+        self.context = object()
+        self.page = object()
+
+    def __enter__(self):
+        return self.context, self.page
+
+    def __exit__(self, type, value, traceback):
+        return False
 
 
 def test_tesoreria_help_expone_scope_privado(monkeypatch):
@@ -83,8 +96,25 @@ def test_tesoreria_valida_antes_de_abrir_browser(monkeypatch, args):
 
 
 @pytest.mark.parametrize("formato", ["pdf", "xls", "both"])
-def test_tesoreria_valido_falla_cerrado_sin_abrir_browser(monkeypatch, formato):
-    monkeypatch.setattr(cli_mod, "abrir_navegador", _no_browser)
+def test_tesoreria_valido_ejecuta_opt_in_con_login_manual(monkeypatch, formato):
+    fake = FakeBrowser()
+    llamadas: dict[str, object] = {}
+    monkeypatch.setattr(cli_mod, "abrir_navegador", lambda: fake)
+    monkeypatch.setattr(
+        cli_mod,
+        "login_manual",
+        lambda page, console: llamadas.setdefault("login", page),
+    )
+
+    def sincronizar(*, page, plan, mem, console, account, retry_doc):
+        llamadas["page"] = page
+        llamadas["account"] = account
+        llamadas["formatos"] = plan.formatos
+        llamadas["retry_doc"] = retry_doc
+        return ResumenTesoreria(nuevos=1, total=len(plan.destinos))
+
+    monkeypatch.setattr(cli_mod, "sincronizar_tesoreria", sincronizar)
+
     result = runner.invoke(
         app,
         [
@@ -101,15 +131,23 @@ def test_tesoreria_valido_falla_cerrado_sin_abrir_browser(monkeypatch, formato):
             "corto",
         ],
     )
-    assert result.exit_code == 3
+    assert result.exit_code == 0
+    assert llamadas["login"] is fake.page
+    assert llamadas["page"] is fake.page
+    assert llamadas["account"] == "texto privado"
     assert "Tesoreria" in result.stdout
-    assert "deshabilitada" in result.stdout
     assert "texto privado" not in result.stdout
-    assert "corto" in result.stdout
+    assert "deshabilitada" not in result.stdout
 
 
 def test_tesoreria_account_con_tag_seguro_no_filtra_account(monkeypatch):
-    monkeypatch.setattr(cli_mod, "abrir_navegador", _no_browser)
+    monkeypatch.setattr(cli_mod, "abrir_navegador", lambda: FakeBrowser())
+    monkeypatch.setattr(cli_mod, "login_manual", lambda _page, _console: None)
+    monkeypatch.setattr(
+        cli_mod,
+        "sincronizar_tesoreria",
+        lambda **_kwargs: ResumenTesoreria(nuevos=1, total=1),
+    )
     result = runner.invoke(
         app,
         [
@@ -124,7 +162,7 @@ def test_tesoreria_account_con_tag_seguro_no_filtra_account(monkeypatch):
             "mi-cuenta",
         ],
     )
-    assert result.exit_code == 3
+    assert result.exit_code == 0
     assert "Cuenta Privada" not in result.stdout
     assert "123" not in result.stdout
     assert "mi-cuenta" in result.stdout

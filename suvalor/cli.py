@@ -49,6 +49,7 @@ from .orquestador import (
     sincronizar_cartera,
     sincronizar_documentos,
     sincronizar_extractos,
+    sincronizar_tesoreria,
 )
 from .pagina import (
     NavegacionFallida,
@@ -637,7 +638,7 @@ def tesoreria(
     tag: Optional[str] = typer.Option(None, "--tag", help="Tag seguro para desambiguar cuenta."),
     redownload: bool = typer.Option(False, "--redownload", help="Reemplazar solo si el nuevo archivo valida."),
 ) -> None:
-    """Prepara descarga opt-in de movimientos de tesoreria (fail-closed)."""
+    """Descarga opt-in de movimientos de tesoreria con login manual."""
     try:
         plan = construir_plan_tesoreria(
             base=BASE, desde_iso=desde, hasta_iso=hasta, formato=formato,
@@ -657,11 +658,36 @@ def tesoreria(
             border_style="cyan",
         )
     )
+    cfg = Config.cargar()
+    mem = MemoriaTimings()
+    try:
+        with abrir_navegador() as (_context, page):
+            login_manual(page, console)
+            resumen = sincronizar_tesoreria(
+                page=page, plan=plan, mem=mem, console=console,
+                account=account, retry_doc=cfg.retry_doc,
+            )
+    except (SessionExpired, NavegacionFallida) as e:
+        console.print(f"[red]Error sincronizando tesoreria: {e}[/red]")
+        raise typer.Exit(code=3)
+    finally:
+        try:
+            mem.guardar()
+        except Exception as e:
+            logger.warning(f"No pude guardar timings: {e}")
+
     console.print(
-        "[yellow]Automatizacion de Tesoreria deshabilitada:[/yellow] falta "
-        "cerrar hardening de sin-datos/atomicidad antes de tocar el portal."
+        Panel(
+            f"Nuevos: [green]{resumen.nuevos}[/green]\n"
+            f"Saltados: [yellow]{resumen.saltados}[/yellow]\n"
+            f"Fallidos: [red]{resumen.fallidos}[/red]\n"
+            f"Total: [cyan]{resumen.total}[/cyan]",
+            title="Tesoreria",
+            border_style="cyan",
+        )
     )
-    raise typer.Exit(code=3)
+    if resumen.fallidos:
+        raise typer.Exit(code=3)
 
 
 # --------------------------------------------------------------------------- #

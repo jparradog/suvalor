@@ -219,28 +219,26 @@ queda ningun tipo actual para reintentar, no se abre Chrome ni se pide login.
 | `suvalor config init` | Crea `_state/config.toml` con un template editable. |
 | `suvalor timings` | Muestra los percentiles aprendidos por operacion. |
 
-### Tesoreria (staging fail-closed)
+### Tesoreria (opt-in staging)
 
 `suvalor tesoreria` existe como superficie opt-in de staging/debug para
-preparar movimientos de Tesoreria por rango explicito:
+descargar movimientos de Tesoreria por rango explicito:
 
 ```bash
 uv run suvalor tesoreria --from 2026-01-01 --to 2026-01-31 --format both --tag cuenta-corta
 uv run suvalor tesoreria --from 2026-01-01 --to 2026-01-31 --format xls --redownload
 ```
 
-Por ahora el comando valida argumentos, calcula destinos seguros y termina en
-modo **fail-closed** antes de tocar el portal. Sigue aplicando el mismo limite
-de **login manual**: no se automatizan credenciales, teclado virtual, OTP ni
-reCAPTCHA. Si se usa `--account`, tambien se debe pasar un `--tag` seguro; el
-texto real de la cuenta nunca debe aparecer en rutas, logs ni resumenes.
+Sigue aplicando el mismo limite de **login manual**: no se automatizan
+credenciales, teclado virtual, OTP ni reCAPTCHA. Si se usa `--account`, tambien
+se debe pasar un `--tag` seguro; el texto real de la cuenta nunca debe aparecer
+en rutas, logs ni resumenes.
 
 Tesoreria todavia no corre dentro de `sync`. El objetivo final es integrarla a
-`suvalor sync` cuando la automatizacion deje de estar fail-closed, con un
-control explicito como `--no-tesoreria`. Antes de esa integracion falta cerrar
-la evidencia redacted del portal para el caso **sin datos**. Hasta entonces,
-cualquier export vacio, error del portal o ausencia de marcador confiable debe
-tratarse como fallo conservador: no crea archivos de exito falsos.
+`suvalor sync` con un control explicito como `--no-tesoreria`. El caso
+**sin datos** observado descarga un `Movimientos_Tesoreria.xls` de **44 bytes**
+con solo encabezado y sin filas; el cliente debe tratarlo como resultado no exitoso
+y no crea archivos de exito falsos.
 
 ## Configuracion (`$SUVALOR_HOME/_state/config.toml`)
 
