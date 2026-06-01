@@ -2,7 +2,7 @@
 
 ## Intent
 
-Add an opt-in manual-login CLI flow to download Tesoreria movements for explicit date ranges without leaking account data or increasing default portal load.
+Add a staged opt-in manual-login CLI flow to download Tesoreria movements for explicit date ranges without leaking account data or increasing default portal load while the flow is fail-closed. Once the flow is complete and safe, the final product UX must integrate Tesoreria into `suvalor sync` so routine synchronization does not require a separate command.
 
 ## Scope
 
@@ -12,13 +12,13 @@ Add an opt-in manual-login CLI flow to download Tesoreria movements for explicit
 - Deterministic `Tesoreria/YYYY/` storage, validation-based idempotency, strict pure-pytest TDD, and docs.
 
 ### Out of Scope
-- Adding Tesoreria to default `sync`.
+- Adding Tesoreria to default `sync` while Tesoreria remains incomplete/fail-closed.
 - Printing/storing raw account labels or numbers in console, filenames, state, logs, or docs.
 - Telemetry, new portal-load defaults, or agent-run portal execution.
 
 ## Approach
 
-Reuse the current CLI/browser/session pattern. Require explicit dates, apply the 89-day safety model, open `/consultas/consultarMovimientoTesoreria.aspx`, optionally select account by substring without echoing its label, export PDF/XLS, then validate.
+Reuse the current CLI/browser/session pattern. Require explicit dates, apply the 89-day safety model, open `/consultas/consultarMovimientoTesoreria.aspx`, optionally select account by substring without echoing its label, export PDF/XLS, then validate. The isolated `tesoreria` command is a staging/manual/debug surface; after selector evidence, validation, idempotency, and tests are complete, add Tesoreria to `suvalor sync` with explicit disable controls.
 
 ## CLI/User Flow
 
@@ -61,6 +61,7 @@ Single PR expected; split if changed lines exceed 400 or generic download refact
 ## Success Criteria
 
 - [ ] Opt-in Tesoreria PDF/XLS downloads work for explicit dates.
+- [ ] Completed safe Tesoreria flow is integrated into `suvalor sync` with explicit disable controls.
 - [ ] Valid existing files skip; invalid files redownload.
 - [ ] No raw account labels/numbers appear in output or filenames.
 - [ ] Pure tests and `uv run pytest` pass.

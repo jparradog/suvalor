@@ -22,12 +22,14 @@
 - [ ] 3.2 Keep page automation disabled/fail-closed until all selector evidence exists; do not add raw or alias account/fund selection in v1.
 - [ ] 3.3 Modify `suvalor/orquestador.py` with `OpcionesFondos`, `ResumenFondos`, chunk loop, `skip`/`nuevo`/`sin_datos`/`fail`, retries, redaction, and atomic temp-to-final persistence.
 
-## Phase 4: Docs / Refactor / Verification
+## Phase 4: Sync Integration / Docs / Verification
 
-- [ ] 4.1 Update `README.md` with safe Fondos usage, manual-login boundary, default account plus `TODOS` v1 scope, validation, idempotency, and `sin_datos`.
-- [ ] 4.2 Update `docs/SITE_NOTES.md` with verified redacted evidence or explicitly state Fondos page automation remains disabled; non-default account/fund selection is deferred pending a future privacy-safe alias design.
-- [ ] 4.3 Refactor only after tests pass, preserving Spanish identifiers, `pathlib.Path`, no telemetry, and no persistent Fondos inventory.
-- [ ] 4.4 Run `uv run pytest`; never run real portal commands (`sync`, `fondos`, `descargar`, `cartera`) during automated agent verification.
+- [ ] 4.1 After page automation is evidence-gated and no longer fail-closed, integrate Fondos into `suvalor sync` so routine synchronization does not require running `suvalor fondos` separately.
+- [ ] 4.2 Add explicit config/CLI disable controls for Fondos in `sync` (for example `--no-fondos` and config default), while keeping the isolated command as an optional manual/debug entry point.
+- [ ] 4.3 Update `README.md` with safe Fondos usage, final `sync` integration behavior, manual-login boundary, default account plus `TODOS` v1 scope, validation, idempotency, and `sin_datos`.
+- [ ] 4.4 Update `docs/SITE_NOTES.md` with verified redacted evidence or explicitly state Fondos page automation remains disabled; non-default account/fund selection is deferred pending a future privacy-safe alias design.
+- [ ] 4.5 Refactor only after tests pass, preserving Spanish identifiers, `pathlib.Path`, no telemetry, and no persistent Fondos inventory.
+- [ ] 4.6 Run `uv run pytest`; never run real portal commands (`sync`, `fondos`, `descargar`, `cartera`) during automated agent verification.
 
 ## Forecast
 

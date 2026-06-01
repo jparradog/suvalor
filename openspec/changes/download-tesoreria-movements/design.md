@@ -2,13 +2,14 @@
 
 ## Technical Approach
 
-Add an opt-in `tesoreria` command on the existing Typer -> `abrir_navegador()` -> `login_manual()` -> authenticated orchestrator pattern. Default `sync` stays unchanged. Build pure helpers first for dates, safe tag canonicalization, destination planning, and validation; only then add Playwright page automation once redacted Tesoreria selectors are documented in `docs/SITE_NOTES.md` or fixtures.
+Add an opt-in `tesoreria` command as a staging/debug surface on the existing Typer -> `abrir_navegador()` -> `login_manual()` -> authenticated orchestrator pattern. During fail-closed development, default `sync` stays unchanged. The final product UX is still `suvalor sync`: once the flow is complete, validated, and no longer fail-closed, Tesoreria must be integrated into `sync` so users do not need a separate routine command. Build pure helpers first for dates, safe tag canonicalization, destination planning, and validation; only then add Playwright page automation once redacted Tesoreria selectors are documented in `docs/SITE_NOTES.md` or fixtures.
 
 ## Architecture Decisions
 
 | Option | Tradeoff | Decision |
 |---|---|---|
 | Use raw account label in filenames/logs | Easy but leaks banking data and creates ambiguous collisions | Reject. Raw account selector text is input-only and never appears in paths, logs, state, or summaries. |
+| Staged command vs final sync | Isolated command is safer while developing, but not desired as final UX | Keep `tesoreria` as staging/manual/debug surface; integrate completed safe flow into `sync` with explicit disable controls. |
 | Require user tag for account scope | Adds one CLI argument but preserves privacy | If `--account` is supplied, `--tag` is mandatory and validated before browser startup. Same tag across separate runs is user-controlled identity; the tool cannot infer account identity without leaking data, so docs warn users to keep tags unique. |
 | Canonicalize tags | Prevents `Cuenta A`, `cuenta-a`, and unsafe path variants from diverging | `canonicalizar_tag_tesoreria()` trims, Unicode-normalizes, lowercases, converts whitespace runs to `-`, allows only `[a-z0-9._-]`, rejects empty/unsafe/path-like values, and fails the plan if two requested account scopes resolve to the same canonical tag in one run. |
 | Reuse 89-day range helper | Less custom code, inherits documented site limit | Use `partir_en_rangos(..., MAX_DIAS_POR_RANGO)` for CLI planning and orchestration. |
@@ -60,7 +61,7 @@ Delimited Tesoreria text is valid only when it has all constraints: at least two
 
 ## Migration / Rollout
 
-No state migration required. Generated files are deterministic under `SUVALOR_HOME/Tesoreria/YYYY/`. Rollout: tests, docs/selector evidence, then gated page automation.
+No state migration required. Generated files are deterministic under `SUVALOR_HOME/Tesoreria/YYYY/`. Rollout: tests, docs/selector evidence, gated page automation, then `sync` integration with explicit disable controls. The isolated command must remain optional after completion, not the only routine path.
 
 ## Open Questions
 

@@ -6,9 +6,9 @@ Define opt-in Tesoreria downloads, privacy-safe account scoping, date planning, 
 
 ## Requirements
 
-### Requirement: Opt-in Tesoreria command
+### Requirement: Staged Tesoreria command
 
-The system MUST provide an opt-in `tesoreria` command for `--from`, `--to`, and `--format pdf|xls|both` after manual login. Tesoreria SHALL NOT run in default `sync`.
+The system MUST provide an opt-in `tesoreria` command for `--from`, `--to`, and `--format pdf|xls|both` while page automation is being validated. During this staging phase, Tesoreria SHALL NOT run in default `sync`.
 
 #### Scenario: User downloads one range
 - GIVEN a user requests Tesoreria for a valid explicit date range
@@ -79,9 +79,19 @@ The system MUST skip only valid existing final artifacts. Invalid finals MAY be 
 - THEN the previous valid XLS final MUST remain available
 - AND the failed XLS MUST NOT replace it
 
+### Requirement: Final sync integration
+
+Once Tesoreria page automation is fully evidence-gated, validated, and no longer fail-closed, the system MUST integrate Tesoreria into `suvalor sync` so users do not need to run a separate operational command for routine synchronization. The isolated `tesoreria` command MAY remain as a manual/debug entry point, but it MUST NOT be the only routine synchronization path after completion. If the portal exposes a no-record marker for Tesoreria, that behavior MUST be documented and tested before sync integration; if no marker exists, empty/export-error behavior MUST fail conservatively without creating fake success files.
+
+#### Scenario: Completed Tesoreria participates in sync
+- GIVEN Tesoreria automation has selector evidence, validation, idempotency, conservative empty/no-record behavior, and tests
+- WHEN a user runs the normal `suvalor sync`
+- THEN Tesoreria SHALL run as part of the sync plan unless disabled by explicit config or flag
+- AND the isolated `tesoreria` command remains optional
+
 ### Requirement: Evidence and documentation
 
-The change MUST include pure pytest coverage for argument validation, safe paths, 89-day chunking, tabular validation, and redownload preservation. Documentation SHALL cover manual login, opt-in scope, safe tags, and privacy.
+The change MUST include pure pytest coverage for argument validation, safe paths, 89-day chunking, tabular validation, and redownload preservation. Documentation SHALL cover manual login, staged opt-in scope, final `sync` integration intent, safe tags, and privacy.
 
 #### Scenario: Review evidence is complete
 - GIVEN the change is ready for review

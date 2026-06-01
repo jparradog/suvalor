@@ -2,7 +2,7 @@
 
 ## Intent
 
-Add an opt-in manual-login CLI flow for Fondos movement exports over explicit date ranges, without automating credentials/captcha/OTP, exposing account/fund labels, adding telemetry, or increasing default `sync` load.
+Add a staged opt-in manual-login CLI flow for Fondos movement exports over explicit date ranges, without automating credentials/captcha/OTP, exposing account/fund labels, adding telemetry, or increasing default `sync` load while the flow is fail-closed. Once the flow is complete and safe, the final product UX must integrate Fondos into `suvalor sync` so routine synchronization does not require a separate command.
 
 ## Scope
 
@@ -15,11 +15,11 @@ Add an opt-in manual-login CLI flow for Fondos movement exports over explicit da
 ### Out of Scope
 - Non-default account/fund selection in v1 unless future privacy-safe aliases are designed.
 - Raw account/fund labels, numbers, or selector strings on CLI, shell history, process listings, console, filenames, state, logs, or docs.
-- Default `sync` inclusion, agent-run real portal commands, telemetry, or credential/session automation.
+- Default `sync` inclusion while Fondos remains incomplete/fail-closed, agent-run real portal commands, telemetry, or credential/session automation.
 
 ## Approach
 
-Reuse the CLI/browser/session pattern. Require explicit dates, chunk by 89 days, open `/consultas/InformeFondos.aspx`, fill `txtFechaInicial`/`txtFechaFinal`, keep default account and `ddlFondo=TODOS`, export via `btnMovExcel`, then validate a conservative Excel/tabular artifact.
+Reuse the CLI/browser/session pattern. Require explicit dates, chunk by 89 days, open `/consultas/InformeFondos.aspx`, fill `txtFechaInicial`/`txtFechaFinal`, keep default account and `ddlFondo=TODOS`, export via `btnMovExcel`, then validate a conservative Excel/tabular artifact. The isolated `fondos` command is a staging/manual/debug surface; after selector evidence, validation, no-record handling, and tests are complete, add Fondos to `suvalor sync` with explicit disable controls.
 
 ## Storage / Idempotency / No Records
 
@@ -54,6 +54,7 @@ Remove the command, constants, orchestration, validation, tests, and docs. User-
 ## Success Criteria
 
 - [ ] Opt-in Fondos export works for explicit dates using default account and `TODOS`.
+- [ ] Completed safe Fondos flow is integrated into `suvalor sync` with explicit disable controls.
 - [ ] CLI exposes no raw account/fund selector values.
 - [ ] Existing valid files skip; invalid files redownload.
 - [ ] No-record responses return `sin_datos` without fake files.

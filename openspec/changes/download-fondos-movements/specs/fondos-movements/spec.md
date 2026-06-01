@@ -2,8 +2,8 @@
 
 ## ADDED Requirements
 
-### Requirement: Opt-in Fondos command scope
-The system MUST expose Fondos downloads only through `suvalor fondos --from YYYY-MM-DD --to YYYY-MM-DD [--tag SAFE] [--redownload]`. Default `sync` MUST NOT include Fondos. v1 MUST use the portal default account and fund `TODOS`; raw `--account` or `--fund` selectors MUST NOT exist.
+### Requirement: Staged Fondos command scope
+The system MUST expose Fondos downloads through `suvalor fondos --from YYYY-MM-DD --to YYYY-MM-DD [--tag SAFE] [--redownload]` while page automation is being validated. During this staging phase, default `sync` MUST NOT include Fondos. v1 MUST use the portal default account and fund `TODOS`; raw `--account` or `--fund` selectors MUST NOT exist.
 
 #### Scenario: Explicit command uses default scope
 - GIVEN a user requests `fondos` with valid `--from` and `--to`
@@ -65,8 +65,17 @@ The system MUST keep prior valid files intact when download, validation, or move
 - THEN the prior file remains intact
 - AND the failed artifact is not promoted to final path
 
+### Requirement: Final sync integration
+Once Fondos page automation is fully evidence-gated, validated, and no longer fail-closed, the system MUST integrate Fondos into `suvalor sync` so users do not need to run a separate operational command for routine synchronization. The isolated `fondos` command MAY remain as a manual/debug entry point, but it MUST NOT be the only routine synchronization path after completion.
+
+#### Scenario: Completed Fondos participates in sync
+- GIVEN Fondos automation has selector evidence, validation, no-record handling, idempotency, and tests
+- WHEN a user runs the normal `suvalor sync`
+- THEN Fondos SHALL run as part of the sync plan unless disabled by explicit config or flag
+- AND the isolated `fondos` command remains optional
+
 ### Requirement: Pure tests and privacy documentation
-Automated tests MUST be pure: no network, no real Playwright, no real portal commands, and no filesystem outside temporary test paths. Documentation SHALL describe opt-in usage, manual-login limits, default account plus `TODOS` scope, validation, idempotency, `sin_datos`, and privacy constraints.
+Automated tests MUST be pure: no network, no real Playwright, no real portal commands, and no filesystem outside temporary test paths. Documentation SHALL describe staged opt-in usage, final `sync` integration intent, manual-login limits, default account plus `TODOS` scope, validation, idempotency, `sin_datos`, and privacy constraints.
 
 #### Scenario: Automated coverage stays offline
 - GIVEN the test suite covers Fondos behavior

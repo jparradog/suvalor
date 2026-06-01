@@ -25,8 +25,11 @@
 - [ ] 3.2 Only after 3.1, modify `suvalor/pagina.py`/`suvalor/descargador.py` to navigate Tesoreria, fill dates, optionally select account without echoing labels, and export PDF/XLS.
 - [ ] 3.3 Add pure integration-lite tests in `tests/test_tesoreria_orquestador.py` using monkeypatches only; no network, Playwright, or portal access.
 
-## Phase 4: Docs, Verification, Review
+## Phase 4: Sync Integration / Docs / Verification
 
-- [ ] 4.1 Update `README.md` with `suvalor tesoreria` examples, opt-in scope, manual login, `--tag`, `--redownload`, and privacy notes.
-- [ ] 4.2 Run `uv run pytest`; record RED/GREEN/REFACTOR evidence and fix only via strict TDD.
-- [ ] 4.3 Review `git diff --stat`; if forecast exceeds 400 changed lines, stop and split/chained-PR before implementation review.
+- [ ] 4.1 After page automation is evidence-gated, idempotent, and no longer fail-closed, integrate Tesoreria into `suvalor sync` so routine synchronization does not require running `suvalor tesoreria` separately.
+- [ ] 4.2 Add explicit config/CLI disable controls for Tesoreria in `sync` (for example `--no-tesoreria` and config default), while keeping the isolated command as an optional manual/debug entry point.
+- [ ] 4.3 Document/test conservative empty/no-record behavior before `sync` integration: use a redacted no-record marker if available, otherwise fail export errors without creating fake success files.
+- [ ] 4.4 Update `README.md` with `suvalor tesoreria` examples, final `sync` integration behavior, staged opt-in scope, manual login, `--tag`, `--redownload`, and privacy notes.
+- [ ] 4.5 Run `uv run pytest`; record RED/GREEN/REFACTOR evidence and fix only via strict TDD.
+- [ ] 4.6 Review `git diff --stat`; if forecast exceeds 400 changed lines, stop and split/chained-PR before implementation review.
