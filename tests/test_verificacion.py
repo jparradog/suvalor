@@ -4,6 +4,7 @@ Estos tests son completamente puros: no tocan red, Playwright ni el
 filesystem real. Solo escriben archivos a `tmp_path` y validan que las
 heuristicas detecten los falsos positivos mas comunes.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -11,6 +12,7 @@ import pytest
 from suvalor.verificacion import (
     es_pdf_valido,
     es_xls_html_valido,
+    sanitizar_pdf_bytes,
     verificar_descarga,
 )
 
@@ -102,6 +104,32 @@ class TestEsPdfValido:
         assert ok is False
         assert "size=" in motivo
 
+    def test_sanitizar_bytes_trunca_despues_ultimo_eof(self):
+        pdf = _pdf_minimo_valido() + b"basura-html"
+        assert sanitizar_pdf_bytes(pdf) == _pdf_minimo_valido().rstrip(b"\n")
+
+    def test_sanitizar_bytes_es_idempotente(self):
+        pdf = _pdf_minimo_valido().rstrip(b"\n")
+        assert sanitizar_pdf_bytes(sanitizar_pdf_bytes(pdf)) == pdf
+
+    def test_verificar_pdf_sanitiza_archivo_con_trailing_html(self, tmp_path):
+        p = tmp_path / "pb.pdf"
+        p.write_bytes(_pdf_minimo_valido() + (b"<html>footer</html>" * 200))
+        ok, motivo = verificar_descarga(p, "pdf")
+        assert ok is True
+        assert motivo == ""
+        assert p.read_bytes().endswith(b"%%EOF")
+
+    @pytest.mark.parametrize(
+        "contenido", [b"<html>login</html>", b"%PDF-1.4\n" + b"x" * 3000]
+    )
+    def test_verificar_pdf_no_sanitiza_html_ni_sin_eof(self, tmp_path, contenido):
+        p = tmp_path / "fake.pdf"
+        p.write_bytes(contenido)
+        ok, motivo = verificar_descarga(p, "pdf")
+        assert ok is False
+        assert motivo
+
 
 # --------------------------------------------------------------------------- #
 # es_xls_html_valido                                                          #
@@ -112,7 +140,8 @@ class TestEsXlsHtmlValido:
     def test_html_con_table_pasa(self, tmp_path):
         p = tmp_path / "portafolio.xls"
         contenido = (
-            b"<html><body>" + b"<p>relleno</p>" * 200
+            b"<html><body>"
+            + b"<p>relleno</p>" * 200
             + b"<table border=1><tr><td>Saldo</td><td>123</td></tr></table>"
             + b"</body></html>"
         )
@@ -125,7 +154,8 @@ class TestEsXlsHtmlValido:
         p = tmp_path / "fake.xls"
         # Tiene <table> pero tambien "iniciar sesion" -> debe fallar.
         contenido = (
-            b"<html><body>" + b"x" * 3000
+            b"<html><body>"
+            + b"x" * 3000
             + b"<form>Iniciar sesion</form>"
             + b"<table><tr><td>foo</td></tr></table>"
             + b"</body></html>"
@@ -157,7 +187,8 @@ class TestEsXlsHtmlValido:
     def test_table_case_insensitive(self, tmp_path):
         p = tmp_path / "ok_upper.xls"
         contenido = (
-            b"<HTML><BODY>" + b"y" * 3000
+            b"<HTML><BODY>"
+            + b"y" * 3000
             + b"<TABLE><TR><TD>x</TD></TR></TABLE></BODY></HTML>"
         )
         p.write_bytes(contenido)
@@ -180,7 +211,8 @@ class TestVerificarDescarga:
     def test_despacha_a_xls_html(self, tmp_path):
         p = tmp_path / "ok.xls"
         p.write_bytes(
-            b"<html><body>" + b"z" * 3000
+            b"<html><body>"
+            + b"z" * 3000
             + b"<table><tr><td>1</td></tr></table></body></html>"
         )
         ok, motivo = verificar_descarga(p, "xls_html")

@@ -86,6 +86,11 @@ class TestTiposDocumentosDisponibles:
             "RC",
         ]
 
+    def test_pb_es_opt_in_explicito_y_no_default(self):
+        cfg = Config()
+        assert "PB" not in TIPOS_DEFAULT
+        assert _parsear_tipos("PB", cfg) == ["PB"]
+
 
 class _MemFake:
     def guardar(self):

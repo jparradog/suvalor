@@ -39,6 +39,32 @@ _HTML_LOGIN_HINTS = (
 )
 
 
+def sanitizar_pdf_bytes(data: bytes) -> bytes:
+    """Trunca bytes posteriores al ultimo marker `%%EOF` de un PDF.
+
+    Solo sanitiza contenido que ya parece PDF y contiene EOF. Para HTML,
+    respuestas sin header o PDFs truncados devuelve los bytes originales para
+    que la validacion conservadora falle con su motivo normal.
+    """
+    if not data.startswith(_PDF_HEADER):
+        return data
+    idx = data.rfind(_PDF_EOF_MARKER)
+    if idx < 0:
+        return data
+    return data[: idx + len(_PDF_EOF_MARKER)]
+
+
+def sanitizar_pdf_en_archivo(path: Path) -> None:
+    """Aplica `sanitizar_pdf_bytes` in-place si hay bytes trailing."""
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return
+    limpio = sanitizar_pdf_bytes(data)
+    if limpio != data:
+        path.write_bytes(limpio)
+
+
 def es_pdf_valido(path: Path, min_bytes: int = 2048) -> tuple[bool, str]:
     """Chequea heuristicamente que `path` sea un PDF no-corrupto.
 
@@ -137,6 +163,7 @@ def verificar_descarga(path: Path, tipo: str) -> tuple[bool, str]:
         - `'xls_html'` -> usa `es_xls_html_valido` (el `.xls` que es HTML)
     """
     if tipo == "pdf":
+        sanitizar_pdf_en_archivo(path)
         return es_pdf_valido(path)
     if tipo == "xls_html":
         return es_xls_html_valido(path)

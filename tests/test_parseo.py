@@ -1,4 +1,5 @@
 """Tests puros (no requieren Playwright) para suvalor.parseo."""
+
 from __future__ import annotations
 
 import pytest
@@ -36,6 +37,21 @@ def test_parsear_fecha_grilla_no_matchea_fallback():
 
 def test_parsear_fecha_grilla_vacio():
     assert parsear_fecha_grilla("") == ""
+
+
+def test_parsear_fecha_grilla_numerica_valida():
+    assert parsear_fecha_grilla("05/04/2025") == "2025-04-05"
+
+
+@pytest.mark.parametrize("entrada", ["31/02/2025", "12/xyz/2025", "32/ene/2025"])
+def test_parsear_fecha_grilla_fecha_matcheada_invalida_falla(entrada):
+    with pytest.raises(ValueError):
+        parsear_fecha_grilla(entrada)
+
+
+def test_parsear_fecha_grilla_no_emite_mes_cero():
+    with pytest.raises(ValueError):
+        parsear_fecha_grilla("12/04x/2025")
 
 
 def test_fecha_iso_a_dmy():

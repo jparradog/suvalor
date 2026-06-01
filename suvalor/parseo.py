@@ -39,18 +39,33 @@ def _quitar_acentos(s: str) -> str:
 
 
 def parsear_fecha_grilla(s: str) -> str:
-    """Convierte fecha de la grilla (`12/abr/2025` o `12/abr./2025`) a ISO `YYYY-MM-DD`.
+    """Convierte fechas de grilla a ISO `YYYY-MM-DD`.
+
+    Soporta `12/abr/2025`, `12/abr./2025` y `12/04/2025`. Si el texto
+    tiene forma de fecha de grilla pero el mes/dia no es valido, levanta
+    `ValueError` en vez de producir fechas imposibles como `YYYY-00-DD`.
 
     Si no matchea el patron esperado, retorna una version "limpia" del string
     (replace `/` -> `-` y elimina puntos), que es lo que hacia el monolito.
     """
     if not s:
         return s
-    m = re.match(r"(\d{1,2})/(\w+)\.?/(\d{4})", s.lower())
+    m = re.match(r"^\s*(\d{1,2})/([^/]+)/?(\d{4})\s*$", s.lower())
     if not m:
         return s.replace("/", "-").replace(".", "")
-    d, mes, a = m.groups()
-    return f"{a}-{_MESES.get(mes[:3], '00')}-{int(d):02d}"
+
+    d_raw, mes_raw, a_raw = m.groups()
+    mes_norm = _quitar_acentos(mes_raw).strip().strip(".").lower()
+    if mes_norm.isdigit():
+        mes_num = int(mes_norm)
+    else:
+        prefijo = mes_norm[:3]
+        if prefijo not in _MESES:
+            raise ValueError(f"mes no reconocido en {s!r}")
+        mes_num = int(_MESES[prefijo])
+
+    fecha = dt.date(int(a_raw), mes_num, int(d_raw))
+    return fecha.isoformat()
 
 
 def fecha_iso_a_dmy(iso: str) -> str:

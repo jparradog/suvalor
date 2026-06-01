@@ -12,6 +12,7 @@ Se reintenta `retry_doc` veces; si todas fallan, se registra en fallos.tsv.
 from __future__ import annotations
 
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -30,6 +31,24 @@ class Resultado:
     NUEVO = "nuevo"
     SKIP = "skip"
     FAIL = "fail"
+
+
+@dataclass(frozen=True)
+class IdentidadDescarga:
+    fecha_iso: str
+    clave: str
+    nombre: str
+
+
+def construir_identidad_descarga(fila: Fila, codigo: str) -> IdentidadDescarga:
+    fecha_iso = parsear_fecha_grilla(fila.fecha)
+    doc_num = fila.doc_num
+    clave = f"{codigo}_{doc_num}"
+    return IdentidadDescarga(
+        fecha_iso=fecha_iso,
+        clave=clave,
+        nombre=f"{fecha_iso}_{codigo}_{doc_num}.pdf",
+    )
 
 
 def cerrar_tabs_pdf(context: BrowserContext) -> None:
@@ -189,17 +208,21 @@ def descargar_doc(
     Si se pasa `motivos_fallidos`, en caso de FAIL se appendea
     `(clave_inv, motivo)` para que el caller lo propague al resumen.
     """
-    fecha_iso = parsear_fecha_grilla(fila.fecha)
-    doc_num = fila.doc_num
-    clave_inv = f"{codigo}_{doc_num}"
-
+    clave_inv = f"{codigo}_{fila.doc_num}"
     if clave_inv in inventario:
         if console:
             console.print(f"  [yellow][skip][/yellow] {clave_inv} ya esta")
         return Resultado.SKIP
 
-    nombre_destino = f"{fecha_iso}_{codigo}_{doc_num}.pdf"
-    destino = dir_destino / nombre_destino
+    identidad = construir_identidad_descarga(fila, codigo)
+    destino = dir_destino / identidad.nombre
+    if destino.exists():
+        inventario.add(clave_inv)
+        if console:
+            console.print(f"  [yellow][skip][/yellow] {clave_inv} ya esta")
+        return Resultado.SKIP
+
+    nombre_destino = identidad.nombre
 
     timeout_s = mem.timeout_ms("descarga") / 1000.0
     p95_s = mem.p95_ms("descarga") / 1000.0
@@ -300,7 +323,7 @@ def descargar_doc(
 
     if console:
         console.print(f"  [red][FAIL][/red] {clave_inv}: {ultimo_motivo}")
-    registrar_fallo(codigo, doc_num, fila.to_dict())
+    registrar_fallo(codigo, fila.doc_num, fila.to_dict())
     if motivos_fallidos is not None:
         motivos_fallidos.append((clave_inv, ultimo_motivo or "desconocido"))
     return Resultado.FAIL

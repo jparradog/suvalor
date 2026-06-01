@@ -100,6 +100,16 @@ BASE/
 └── Cartera/
 ```
 
+### PB (Papeletas de Bolsa) — observaciones redacted
+
+- PB permanece **opt-in** con `--types PB`; no forma parte de los defaults.
+- La grilla PB usa headers distintos a RC/NC/CE. La identidad del archivo se
+  toma de `N°Papeleta` y la fecha canonica de `Fecha Operacion`.
+- Algunos PDF PB pueden traer bytes/HTML despues del ultimo `%%EOF`; el cliente
+  trunca solo lo posterior al ultimo EOF y vuelve a validar el PDF.
+- Smoke manual recomendado para mantenedor: `--smoke-test --max-docs 3 --types PB`.
+  No ejecutar desde agentes ni pruebas automatizadas.
+
 ### Adobe Acrobat extension — gotcha
 
 Si Chrome tiene la extension de Adobe Acrobat, los PDFs **NO disparan

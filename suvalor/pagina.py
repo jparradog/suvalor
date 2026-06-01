@@ -13,7 +13,9 @@ porque maneja el archivo en disco (tmp -> destino).
 """
 from __future__ import annotations
 
+import re
 import time
+import unicodedata
 from dataclasses import dataclass
 from typing import Optional
 
@@ -45,6 +47,10 @@ class SessionExpired(RuntimeError):
 
 class NavegacionFallida(RuntimeError):
     """No se pudo llegar a la URL objetivo despues de los reintentos."""
+
+
+class ErrorExtraccionFilas(RuntimeError):
+    """La grilla no tiene la estructura esperada para extraer filas."""
 
 
 @dataclass
@@ -247,6 +253,21 @@ _JS_EXTRAER_FILAS = """
 })()
 """
 
+_JS_EXTRAER_TABLA = """
+(() => {
+    const t = document.querySelector('table[id*="gvDocumentos"]');
+    if (!t) return {headers: [], rows: []};
+    const trs = Array.from(t.querySelectorAll('tr'));
+    if (trs.length === 0) return {headers: [], rows: []};
+    const headerCells = Array.from(trs[0].querySelectorAll('th,td'))
+        .map(x => x.textContent.trim());
+    const rows = trs.slice(1)
+        .map(r => Array.from(r.querySelectorAll('td')).map(x => x.textContent.trim()))
+        .filter(c => c.length > 0);
+    return {headers: headerCells, rows};
+})()
+"""
+
 _JS_PAGINAS = """
 Array.from(document.querySelectorAll('a[href*="Page$"]'))
     .map(a => parseInt(a.textContent.trim()))
@@ -254,7 +275,56 @@ Array.from(document.querySelectorAll('a[href*="Page$"]'))
 """
 
 
-def extraer_filas(page: Page) -> list[Fila]:
+def _normalizar_header_grilla(texto: str) -> str:
+    sin_acentos = "".join(
+        c for c in unicodedata.normalize("NFD", texto)
+        if unicodedata.category(c) != "Mn"
+    )
+    return re.sub(r"[^a-z0-9]+", "", sin_acentos.lower())
+
+
+def _buscar_header(headers: list[str], aliases: set[str]) -> int:
+    normalizados = [_normalizar_header_grilla(h) for h in headers]
+    for idx, header in enumerate(normalizados):
+        if header in aliases:
+            return idx
+    raise ErrorExtraccionFilas(
+        f"No encontre header requerido; disponibles={normalizados}"
+    )
+
+
+def _extraer_filas_pb_desde_tabla(headers: list[str], rows: list[list[str]]) -> list[Fila]:
+    idx_papeleta = _buscar_header(
+        headers, {"npapeleta", "nopapeleta", "numeropapeleta"}
+    )
+    idx_fecha = _buscar_header(headers, {"fechaoperacion"})
+    try:
+        idx_valor = _buscar_header(headers, {"valor"})
+    except ErrorExtraccionFilas:
+        idx_valor = len(headers) - 1
+
+    filas: list[Fila] = []
+    for i, row in enumerate(rows):
+        if len(row) <= max(idx_papeleta, idx_fecha, idx_valor):
+            continue
+        filas.append(
+            Fila(
+                idx=i,
+                fecha=row[idx_fecha],
+                doc_num=row[idx_papeleta],
+                valor=row[idx_valor],
+            )
+        )
+    return filas
+
+
+def extraer_filas(page: Page, codigo: str | None = None) -> list[Fila]:
+    if codigo == "PB":
+        raw = page.evaluate(_JS_EXTRAER_TABLA) or {"headers": [], "rows": []}
+        return _extraer_filas_pb_desde_tabla(
+            headers=list(raw.get("headers") or []),
+            rows=list(raw.get("rows") or []),
+        )
     raw = page.evaluate(_JS_EXTRAER_FILAS) or []
     return [Fila(**r) for r in raw]
 

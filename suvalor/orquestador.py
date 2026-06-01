@@ -273,7 +273,7 @@ def _procesar_paginas(
     paginas_procesadas = 0
 
     while paginas_procesadas < config.max_pages_per_query:
-        filas = extraer_filas(page)
+        filas = extraer_filas(page, codigo)
         if not filas:
             if pagina_actual == 1:
                 console.print(f"  [dim]{codigo}: vacio[/dim]")
