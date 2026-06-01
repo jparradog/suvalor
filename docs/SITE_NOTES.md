@@ -231,7 +231,7 @@ Misma logica de retry si falla.
 
 | Funcion | URL | Notas |
 |---|---|---|
-| Movimientos de Tesoreria | `/consultas/consultarMovimientoTesoreria.aspx` | Form con FechaInicial/FechaFinal + selector cuenta + botones PDF (`btnMovTesoreriaPDF`) y Excel (`btnMovTesoreriaExcel`). Util para flujo de caja. |
+| Movimientos de Tesoreria | `/consultas/consultarMovimientoTesoreria.aspx` | Evidencia manual redacted 2026-06-01: cuenta `ctl00_Contenedor_mddlCuentasMultiproducto` (4 opciones; textos/valores no documentados), fechas `ctl00_Contenedor_wcFechaInicial` y `ctl00_Contenedor_wcFechaFinal`, PDF `ctl00_Contenedor_btnMovTesoreriaPDF`, Excel `ctl00_Contenedor_btnMovTesoreriaExcel`. PDF disparo download `MovTesoreria-<id>.pdf`; Excel disparo `Movimientos_Tesoreria.xls`. Fecha futura muestra alert `La fecha final no puede ser mayor o igual a la fecha actual`. Falta marcador redacted de sin datos antes de automatizar no-data. |
 | Movimientos Wompi | `/consultas/MovimientosWompi.aspx` | No explorado. |
 | Informe movimientos fondos | `/consultas/InformeFondos.aspx` | Opt-in `suvalor fondos` preparado en modo fail-closed. Automatizacion de pagina deshabilitada hasta documentar evidencia redacted de inputs de fecha, accion de exportacion y marcador de sin datos. v1 usa cuenta default + fondo `TODOS`; no hay `--account` ni `--fund`. |
 | Suscripcion a documentos | `/operaciones/suscripcionDocumentos.aspx` | Form de suscripcion (no descarga). |
