@@ -48,6 +48,7 @@ _FONDOS_ERROR_HINTS = _HTML_LOGIN_HINTS + (
     "sesion expirada",
 )
 _OLE_XLS_HEADER = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+_TESORERIA_HEADER_TOKENS = ("fecha", "descripcion", "movimiento", "valor", "saldo")
 
 
 def sanitizar_pdf_bytes(data: bytes) -> bytes:
@@ -238,6 +239,60 @@ def es_reporte_fondos_valido(path: Path) -> tuple[bool, str]:
     return False, "formato de reporte fondos no reconocido"
 
 
+def _html_tesoreria_con_tabla(texto: str) -> bool:
+    bajo = texto.lower()
+    return "<table" in bajo and "<tr" in bajo and ("<td" in bajo or "<th" in bajo)
+
+
+def _es_texto_tesoreria_delimitado_valido(texto: str) -> bool:
+    lineas = [ln.strip() for ln in texto.splitlines() if ln.strip()]
+    if len(lineas) < 2:
+        return False
+    for sep in ("\t", ";", ","):
+        if sep not in lineas[0]:
+            continue
+        header = [c.strip().lower() for c in lineas[0].split(sep)]
+        if len(header) < 2 or not any(
+            t in " ".join(header) for t in _TESORERIA_HEADER_TOKENS
+        ):
+            continue
+        if all(len(ln.split(sep)) == len(header) for ln in lineas[1:]):
+            return True
+    return False
+
+
+def es_tabular_tesoreria_valido(path: Path) -> tuple[bool, str]:
+    """Valida XLS/tabular de Tesoreria con heuristicas conservadoras."""
+    if not path.exists():
+        return False, "archivo no existe"
+    try:
+        raw = path.read_bytes()
+    except OSError as e:
+        return False, f"error leyendo: {e}"
+    if not raw:
+        return False, "size=0 bytes"
+    if raw.startswith(_OLE_XLS_HEADER):
+        return True, ""
+    if raw.startswith(b"PK"):
+        return (True, "") if _es_xlsx_valido(path) else (False, "xlsx malformado")
+    if b"\x00" in raw[:256]:
+        return False, "magic bytes no reconocidos"
+    texto = raw.decode("utf-8", errors="ignore")
+    hint = _contiene_hint_error_fondos(texto)
+    if hint:
+        return False, f"contiene '{hint}' (probable respuesta de error/login)"
+    bajo = texto.lower()
+    if "<html" in bajo or "<!doctype" in bajo:
+        return (
+            (True, "")
+            if _html_tesoreria_con_tabla(texto)
+            else (False, "html sin tabla")
+        )
+    if _es_texto_tesoreria_delimitado_valido(texto):
+        return True, ""
+    return False, "formato de reporte tesoreria no reconocido"
+
+
 def verificar_descarga(path: Path, tipo: str) -> tuple[bool, str]:
     """Despachador segun el `tipo` esperado del archivo.
 
@@ -252,4 +307,6 @@ def verificar_descarga(path: Path, tipo: str) -> tuple[bool, str]:
         return es_xls_html_valido(path)
     if tipo == "fondos":
         return es_reporte_fondos_valido(path)
+    if tipo in {"tesoreria", "tesoreria_xls"}:
+        return es_tabular_tesoreria_valido(path)
     return False, f"tipo de verificacion desconocido: {tipo!r}"

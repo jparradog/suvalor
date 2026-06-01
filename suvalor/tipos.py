@@ -75,10 +75,11 @@ CONFIG_FILE: Path = STATE_DIR / "config.toml"
 LOG_FILE: Path = STATE_DIR / "run.log"
 FALLOS_TSV: Path = FALLIDOS_DIR / "fallos.tsv"
 
-# --- Carpetas de salida (subcomandos extractos / cartera / fondos) ---
+# --- Carpetas de salida (subcomandos extractos / cartera / fondos / tesoreria) ---
 EXTRACTOS_DIR: Path = BASE / "Extractos"
 CARTERA_DIR: Path = BASE / "Cartera"
 FONDOS_DIR: Path = BASE / "Fondos"
+TESORERIA_DIR: Path = BASE / "Tesoreria"
 
 # --- URLs ---
 LOGIN_URL = "https://www.suvalor.com/operaciones/login.aspx"
@@ -95,6 +96,7 @@ EXTRACTO_PDF_URL = (
 )
 CARTERA_URL = "https://www.suvalor.com/consultas/portafolioConsolidado.aspx"
 FONDOS_URL = "https://www.suvalor.com/consultas/InformeFondos.aspx"
+TESORERIA_URL = "https://www.suvalor.com/consultas/consultarMovimientoTesoreria.aspx"
 
 # --- Nombre del archivo temporal que escribe el visor (descargas docs) ---
 # El sitio descarga siempre con este nombre fijo en la carpeta `BASE`.
@@ -115,6 +117,13 @@ POSTBACK_TARGET_GV = "ctl00$Contenedor$ucConsultarDocumentosElectronicos$gvDocum
 ID_DDL_PERIODO = "ddlPeriodo"
 ID_DDL_CUENTA = "uscSitioTopConsultas_mddlCuentasMultiproducto"
 ID_BTN_EXCEL = "btnExcel"
+
+# --- IDs ASP.NET tesoreria (evidencia redacted en docs/SITE_NOTES.md) ---
+ID_TESORERIA_CUENTA = "ctl00_Contenedor_mddlCuentasMultiproducto"
+ID_TESORERIA_FECHA_INI = "ctl00_Contenedor_wcFechaInicial"
+ID_TESORERIA_FECHA_FIN = "ctl00_Contenedor_wcFechaFinal"
+ID_TESORERIA_BTN_PDF = "ctl00_Contenedor_btnMovTesoreriaPDF"
+ID_TESORERIA_BTN_EXCEL = "ctl00_Contenedor_btnMovTesoreriaExcel"
 
 
 class TipoDoc(str, Enum):

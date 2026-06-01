@@ -14,6 +14,7 @@ import pytest
 from suvalor.verificacion import (
     es_pdf_valido,
     es_reporte_fondos_valido,
+    es_tabular_tesoreria_valido,
     es_xls_html_valido,
     sanitizar_pdf_bytes,
     verificar_descarga,
@@ -266,6 +267,53 @@ class TestEsReporteFondosValido:
 
 
 # --------------------------------------------------------------------------- #
+# es_tabular_tesoreria_valido                                                 #
+# --------------------------------------------------------------------------- #
+
+
+class TestEsTabularTesoreriaValido:
+    def test_acepta_ole_xls_y_xlsx(self, tmp_path):
+        ole = tmp_path / "tesoreria.xls"
+        ole.write_bytes(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"x" * 128)
+        xlsx = tmp_path / "tesoreria.xlsx"
+        with ZipFile(xlsx, "w") as zf:
+            zf.writestr("[Content_Types].xml", "<Types />")
+            zf.writestr("xl/workbook.xml", "<workbook />")
+        assert es_tabular_tesoreria_valido(ole) == (True, "")
+        assert es_tabular_tesoreria_valido(xlsx) == (True, "")
+
+    def test_acepta_html_con_tabla_y_celda(self, tmp_path):
+        p = tmp_path / "tesoreria.xls"
+        p.write_text("<html><body><table><tr><td>Valor</td></tr></table></body></html>")
+        assert es_tabular_tesoreria_valido(p) == (True, "")
+
+    @pytest.mark.parametrize("sep", [",", ";", "\t"])
+    def test_acepta_texto_delimitado_con_token_requerido(self, tmp_path, sep):
+        p = tmp_path / "tesoreria.xls"
+        p.write_text(f"Fecha{sep}Valor\n2026-01-01{sep}100\n", encoding="utf-8")
+        assert es_tabular_tesoreria_valido(p) == (True, "")
+
+    @pytest.mark.parametrize(
+        "contenido",
+        [
+            "",
+            "<html><body>Iniciar sesion<table><tr><td>x</td></tr></table></body></html>",
+            "<html><body>Error de aplicacion<table><tr><td>x</td></tr></table></body></html>",
+            "foo,bar\n1,2\n",
+            "Fecha,Valor\n2026-01-01\n",
+            "PK-no-es-zip-valido",
+            "\x00\x01\x02\x03",
+        ],
+    )
+    def test_rechaza_inseguros_o_malformados(self, tmp_path, contenido):
+        p = tmp_path / "tesoreria.xls"
+        p.write_text(contenido, encoding="utf-8")
+        ok, motivo = es_tabular_tesoreria_valido(p)
+        assert ok is False
+        assert motivo
+
+
+# --------------------------------------------------------------------------- #
 # verificar_descarga: despachador                                             #
 # --------------------------------------------------------------------------- #
 
@@ -291,6 +339,13 @@ class TestVerificarDescarga:
         p = tmp_path / "fondos.xls"
         p.write_text("Fecha\tValor\n2026-01-01\t100\n", encoding="utf-8")
         ok, motivo = verificar_descarga(p, "fondos")
+        assert ok is True
+        assert motivo == ""
+
+    def test_despacha_a_tesoreria(self, tmp_path):
+        p = tmp_path / "tesoreria.xls"
+        p.write_text("Fecha\tValor\n2026-01-01\t100\n", encoding="utf-8")
+        ok, motivo = verificar_descarga(p, "tesoreria")
         assert ok is True
         assert motivo == ""
 

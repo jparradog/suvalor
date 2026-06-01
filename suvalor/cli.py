@@ -12,6 +12,7 @@ Subcomandos:
     config             muestra (o inicializa) `_state/config.toml`.
     timings            imprime las stats actuales aprendidas por operacion.
 """
+
 from __future__ import annotations
 
 import dataclasses
@@ -62,6 +63,7 @@ from .pagina import (
 )
 from .descargador import Resultado, descargar_doc, tmp_path_default
 from .fondos import construir_plan_fondos
+from .tesoreria import construir_plan_tesoreria
 from .rangos import rangos_para_corrida, resumir_rangos
 from .timings import MemoriaTimings
 from .tipos import (
@@ -154,10 +156,16 @@ def _version_callback(value: bool) -> None:
 def _root(
     ctx: typer.Context,
     version: bool = typer.Option(
-        False, "--version", "-V", callback=_version_callback,
-        is_eager=True, help="Muestra la version y sale."
+        False,
+        "--version",
+        "-V",
+        callback=_version_callback,
+        is_eager=True,
+        help="Muestra la version y sale.",
     ),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Logging DEBUG en consola."),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Logging DEBUG en consola."
+    ),
 ) -> None:
     _setup_logging(verbose=verbose)
     if ctx.invoked_subcommand is None:
@@ -242,8 +250,11 @@ def _construir_opciones_docs(
         range_days=cfg.range_days,
     )
     return OpcionesCorrida(
-        tipos=tipos, rangos=rangos, config=cfg,
-        max_docs=max_docs, smoke_test=smoke_test,
+        tipos=tipos,
+        rangos=rangos,
+        config=cfg,
+        max_docs=max_docs,
+        smoke_test=smoke_test,
     )
 
 
@@ -254,17 +265,23 @@ def _construir_opciones_docs(
 
 @app.command()
 def descargar(
-    backfill: bool = typer.Option(False, "--backfill", help="Consulta historica desde 2024-01-01."),
+    backfill: bool = typer.Option(
+        False, "--backfill", help="Consulta historica desde 2024-01-01."
+    ),
     desde: Optional[str] = typer.Option(None, "--from", help="Fecha desde YYYY-MM-DD."),
     hasta: Optional[str] = typer.Option(None, "--to", help="Fecha hasta YYYY-MM-DD."),
     types: str = typer.Option(
         "",
         "--types",
         help="Tipos a consultar separados por coma (RC,NC,CE; FB/PB opt-in). "
-             "Si vacio, usa el default del config.",
+        "Si vacio, usa el default del config.",
     ),
-    smoke_test: bool = typer.Option(False, "--smoke-test", help="Solo ultimos 30 dias."),
-    max_docs: int = typer.Option(0, "--max-docs", help="Limite de docs a descargar (0 = sin limite)."),
+    smoke_test: bool = typer.Option(
+        False, "--smoke-test", help="Solo ultimos 30 dias."
+    ),
+    max_docs: int = typer.Option(
+        0, "--max-docs", help="Limite de docs a descargar (0 = sin limite)."
+    ),
 ) -> None:
     """Corre el flujo principal: login manual + consulta y descarga por (rango, tipo)."""
     cfg = Config.cargar()
@@ -273,9 +290,14 @@ def descargar(
     mem = MemoriaTimings()
 
     opciones = _construir_opciones_docs(
-        cfg=cfg, estado=estado,
-        backfill=backfill, desde=desde, hasta=hasta,
-        types=types, smoke_test=smoke_test, max_docs=max_docs,
+        cfg=cfg,
+        estado=estado,
+        backfill=backfill,
+        desde=desde,
+        hasta=hasta,
+        types=types,
+        smoke_test=smoke_test,
+        max_docs=max_docs,
     )
 
     console.print(
@@ -290,13 +312,20 @@ def descargar(
     )
     for r in opciones.rangos:
         console.print(f"  - {r.desde_dmy} a {r.hasta_dmy}")
-    logger.info(f"Corrida iniciada. Tipos={opciones.tipos} rangos={len(opciones.rangos)}")
+    logger.info(
+        f"Corrida iniciada. Tipos={opciones.tipos} rangos={len(opciones.rangos)}"
+    )
 
     try:
         with abrir_navegador() as (context, page):
             resumen = correr(
-                context=context, page=page, opciones=opciones,
-                inventario=inventario, estado=estado, mem=mem, console=console,
+                context=context,
+                page=page,
+                opciones=opciones,
+                inventario=inventario,
+                estado=estado,
+                mem=mem,
+                console=console,
             )
     except SessionExpired as e:
         console.print(f"[red]Sesion expirada y no se pudo recuperar: {e}[/red]")
@@ -312,6 +341,7 @@ def descargar(
     renderear_resumen(console, resumen, inventario)
     if resumen.fallidos > 0:
         from .tipos import FALLOS_TSV
+
         _renderear_detalle_fallidos_docs(console, list(resumen.detalle_fallidos))
         console.print(f"[yellow]Fallos esta corrida en:[/yellow] {FALLOS_TSV}")
 
@@ -333,7 +363,9 @@ def inventario() -> None:
         codigo = k.split("_", 1)[0] if "_" in k else "??"
         por_tipo[codigo] = por_tipo.get(codigo, 0) + 1
 
-    tabla = Table(title=f"Inventario docs - {len(inv)} totales", header_style="bold cyan")
+    tabla = Table(
+        title=f"Inventario docs - {len(inv)} totales", header_style="bold cyan"
+    )
     tabla.add_column("Tipo")
     tabla.add_column("Nombre")
     tabla.add_column("Cantidad", justify="right")
@@ -390,6 +422,7 @@ def reset(
     """Borra `_state/inventario.json` y `_state/ultima_corrida.json`."""
     if not yes:
         from rich.prompt import Confirm
+
         if not Confirm.ask(
             "[bold red]Esto borra inventario.json y ultima_corrida.json.[/bold red] Seguro?"
         ):
@@ -488,14 +521,21 @@ def recuperar_fallidos() -> None:
                 filas = extraer_filas(page)
                 fila = next((f for f in filas if f.doc_num == doc_num), None)
                 if not fila:
-                    console.print(f"[yellow]No encontre {clave} en {desde_dmy}->{hasta_dmy}[/yellow]")
+                    console.print(
+                        f"[yellow]No encontre {clave} en {desde_dmy}->{hasta_dmy}[/yellow]"
+                    )
                     aun_falla += 1
                     continue
 
                 resultado = descargar_doc(
-                    page=page, fila=fila, codigo=tipo,
-                    dir_destino=dir_destino, inventario=inv,
-                    tmp_path=tmp_path, mem=mem, retry_doc=cfg.retry_doc,
+                    page=page,
+                    fila=fila,
+                    codigo=tipo,
+                    dir_destino=dir_destino,
+                    inventario=inv,
+                    tmp_path=tmp_path,
+                    mem=mem,
+                    retry_doc=cfg.retry_doc,
                     console=console,
                 )
                 if resultado == Resultado.NUEVO:
@@ -507,6 +547,7 @@ def recuperar_fallidos() -> None:
     finally:
         mem.guardar()
         from .estado import guardar_inventario
+
         guardar_inventario(inv)
 
     console.print(
@@ -520,7 +561,9 @@ def recuperar_fallidos() -> None:
     )
 
 
-config_app = typer.Typer(help="Mostrar / inicializar configuracion en _state/config.toml.")
+config_app = typer.Typer(
+    help="Mostrar / inicializar configuracion en _state/config.toml."
+)
 app.add_typer(config_app, name="config")
 
 
@@ -540,6 +583,7 @@ def config_init(
     force: bool = typer.Option(False, "--force", help="Sobrescribir si existe."),
 ) -> None:
     from .tipos import CONFIG_FILE
+
     if CONFIG_FILE.exists() and not force:
         console.print(
             f"[yellow]Ya existe {CONFIG_FILE}. Usa --force para sobrescribir.[/yellow]"
@@ -563,11 +607,11 @@ def timings() -> None:
         s = mem.stats[op]
         tabla.add_row(
             op,
-            f"{s.p50/1000:.1f}",
-            f"{s.p95/1000:.1f}",
-            f"{s.max_visto/1000:.1f}",
+            f"{s.p50 / 1000:.1f}",
+            f"{s.p95 / 1000:.1f}",
+            f"{s.max_visto / 1000:.1f}",
             str(s.n_total),
-            f"{mem.timeout_ms(op)/1000:.1f}",
+            f"{mem.timeout_ms(op) / 1000:.1f}",
         )
     console.print(tabla)
 
@@ -623,6 +667,58 @@ def fondos(
 
 
 # --------------------------------------------------------------------------- #
+# Comando: tesoreria                                                          #
+# --------------------------------------------------------------------------- #
+
+
+@app.command()
+def tesoreria(
+    desde: str = typer.Option(..., "--from", help="Fecha desde YYYY-MM-DD."),
+    hasta: str = typer.Option(..., "--to", help="Fecha hasta YYYY-MM-DD."),
+    formato: str = typer.Option("both", "--format", help="pdf, xls o both."),
+    account: Optional[str] = typer.Option(
+        None, "--account", help="Selector de cuenta; requiere --tag."
+    ),
+    tag: Optional[str] = typer.Option(
+        None, "--tag", help="Tag seguro para desambiguar cuenta."
+    ),
+    redownload: bool = typer.Option(
+        False, "--redownload", help="Reemplazar solo si el nuevo archivo valida."
+    ),
+) -> None:
+    """Prepara descarga opt-in de movimientos de tesoreria (fail-closed)."""
+    try:
+        plan = construir_plan_tesoreria(
+            base=BASE,
+            desde_iso=desde,
+            hasta_iso=hasta,
+            formato=formato,
+            account=account,
+            tag=tag or "",
+            redownload=redownload,
+        )
+    except ValueError as e:
+        console.print(f"[red]ERROR:[/red] {e}")
+        raise typer.Exit(code=2)
+
+    console.print(
+        Panel(
+            f"Rangos: [cyan]{len(plan.rangos)}[/cyan]\n"
+            f"Formatos: [cyan]{', '.join(plan.formatos)}[/cyan]\n"
+            f"Destino ejemplo: [cyan]{plan.destinos[0].relative_to(BASE)}[/cyan]\n"
+            "Scope opt-in; --account nunca aparece en rutas/logs y requiere --tag.",
+            title="Tesoreria",
+            border_style="cyan",
+        )
+    )
+    console.print(
+        "[yellow]Automatizacion de Tesoreria deshabilitada:[/yellow] falta "
+        "cerrar hardening de sin-datos/atomicidad antes de tocar el portal."
+    )
+    raise typer.Exit(code=3)
+
+
+# --------------------------------------------------------------------------- #
 # Comando: extractos                                                          #
 # --------------------------------------------------------------------------- #
 
@@ -630,11 +726,14 @@ def fondos(
 @app.command()
 def extractos(
     solo: Optional[str] = typer.Option(
-        None, "--solo",
+        None,
+        "--solo",
         help="Descargar solo el periodo YYYY-MM (ej. 2025-04).",
     ),
     redownload: bool = typer.Option(
-        False, "--redownload", help="Ignora inventario/disco y re-baja todos los disponibles."
+        False,
+        "--redownload",
+        help="Ignora inventario/disco y re-baja todos los disponibles.",
     ),
     max_n: int = typer.Option(
         0, "--max", help="Limite de descargas en esta corrida (0 = sin limite)."
@@ -651,8 +750,13 @@ def extractos(
             login_manual(page, console)
             try:
                 res = sincronizar_extractos(
-                    page=page, inv_ext=inv_ext, mem=mem, console=console,
-                    solo=solo, redownload=redownload, max_n=max_n,
+                    page=page,
+                    inv_ext=inv_ext,
+                    mem=mem,
+                    console=console,
+                    solo=solo,
+                    redownload=redownload,
+                    max_n=max_n,
                     retry_doc=cfg.retry_doc,
                 )
             except (SessionExpired, NavegacionFallida) as e:
@@ -695,9 +799,10 @@ def extractos(
 @app.command()
 def cartera(
     account: Optional[str] = typer.Option(
-        None, "--account",
-        help='Etiqueta (substring) de la cuenta a seleccionar. '
-             'Default: la que este preseleccionada o "TODAS LAS CUENTAS".',
+        None,
+        "--account",
+        help="Etiqueta (substring) de la cuenta a seleccionar. "
+        'Default: la que este preseleccionada o "TODAS LAS CUENTAS".',
     ),
 ) -> None:
     """Descarga el portafolio consolidado (Excel) y lo guarda en `Cartera/`."""
@@ -709,7 +814,10 @@ def cartera(
         with abrir_navegador() as (context, page):
             login_manual(page, console)
             res = sincronizar_cartera(
-                page=page, mem=mem, console=console, account=account,
+                page=page,
+                mem=mem,
+                console=console,
+                account=account,
                 retry_doc=cfg.retry_doc,
             )
     except SessionExpired as e:
@@ -733,6 +841,7 @@ def cartera(
 @dataclasses.dataclass
 class _PlanSync:
     """Que etapas correr en `sync`. Util para tests del argument parsing."""
+
     do_docs: bool
     do_extractos: bool
     do_cartera: bool
@@ -818,15 +927,18 @@ def _renderear_resumen_sync(
     # Sub-seccion: motivos de fallos de verificacion (solo si los hay).
     motivos_docs = (
         list(res_docs.detalle_fallidos)
-        if res_docs is not None and res_docs.detalle_fallidos else []
+        if res_docs is not None and res_docs.detalle_fallidos
+        else []
     )
     motivos_ext = (
         list(res_ext.detalle_fallidos)
-        if res_ext is not None and res_ext.detalle_fallidos else []
+        if res_ext is not None and res_ext.detalle_fallidos
+        else []
     )
     motivo_cart = (
         res_cart.motivo_verificacion
-        if res_cart is not None and res_cart.motivo_verificacion else None
+        if res_cart is not None and res_cart.motivo_verificacion
+        else None
     )
 
     if motivos_docs or motivos_ext or motivo_cart:
@@ -847,19 +959,36 @@ def _renderear_resumen_sync(
 
 @app.command()
 def sync(
-    no_docs: bool = typer.Option(False, "--no-docs", help="Saltarse documentos contables."),
-    no_extractos: bool = typer.Option(False, "--no-extractos", help="Saltarse extractos PDF."),
-    no_cartera: bool = typer.Option(False, "--no-cartera", help="Saltarse snapshot de cartera."),
-    types: str = typer.Option(
-        "", "--types",
-        help="Tipos a consultar separados por coma (RC,NC,CE; FB/PB opt-in). "
-             "Si vacio, usa el default del config. Solo afecta a la etapa de docs.",
+    no_docs: bool = typer.Option(
+        False, "--no-docs", help="Saltarse documentos contables."
     ),
-    backfill: bool = typer.Option(False, "--backfill", help="Docs: consulta historica desde 2024-01-01."),
-    desde: Optional[str] = typer.Option(None, "--from", help="Docs: fecha desde YYYY-MM-DD."),
-    hasta: Optional[str] = typer.Option(None, "--to", help="Docs: fecha hasta YYYY-MM-DD."),
-    smoke_test: bool = typer.Option(False, "--smoke-test", help="Docs: solo ultimos 30 dias."),
-    max_docs: int = typer.Option(0, "--max-docs", help="Docs: limite de descargas (0 = sin limite)."),
+    no_extractos: bool = typer.Option(
+        False, "--no-extractos", help="Saltarse extractos PDF."
+    ),
+    no_cartera: bool = typer.Option(
+        False, "--no-cartera", help="Saltarse snapshot de cartera."
+    ),
+    types: str = typer.Option(
+        "",
+        "--types",
+        help="Tipos a consultar separados por coma (RC,NC,CE; FB/PB opt-in). "
+        "Si vacio, usa el default del config. Solo afecta a la etapa de docs.",
+    ),
+    backfill: bool = typer.Option(
+        False, "--backfill", help="Docs: consulta historica desde 2024-01-01."
+    ),
+    desde: Optional[str] = typer.Option(
+        None, "--from", help="Docs: fecha desde YYYY-MM-DD."
+    ),
+    hasta: Optional[str] = typer.Option(
+        None, "--to", help="Docs: fecha hasta YYYY-MM-DD."
+    ),
+    smoke_test: bool = typer.Option(
+        False, "--smoke-test", help="Docs: solo ultimos 30 dias."
+    ),
+    max_docs: int = typer.Option(
+        0, "--max-docs", help="Docs: limite de descargas (0 = sin limite)."
+    ),
 ) -> None:
     """Sincroniza TODO en una sola sesion: docs + extractos + snapshot de cartera.
 
@@ -868,7 +997,9 @@ def sync(
     refleja. Es el comando default cuando se invoca `uv run suvalor` sin args.
     """
     plan = _plan_desde_flags(
-        no_docs=no_docs, no_extractos=no_extractos, no_cartera=no_cartera,
+        no_docs=no_docs,
+        no_extractos=no_extractos,
+        no_cartera=no_cartera,
     )
     if plan.nada_que_hacer():
         console.print(
@@ -886,9 +1017,14 @@ def sync(
     opciones_docs: Optional[OpcionesCorrida] = None
     if plan.do_docs:
         opciones_docs = _construir_opciones_docs(
-            cfg=cfg, estado=estado,
-            backfill=backfill, desde=desde, hasta=hasta,
-            types=types, smoke_test=smoke_test, max_docs=max_docs,
+            cfg=cfg,
+            estado=estado,
+            backfill=backfill,
+            desde=desde,
+            hasta=hasta,
+            types=types,
+            smoke_test=smoke_test,
+            max_docs=max_docs,
         )
 
     console.print(
@@ -918,8 +1054,13 @@ def sync(
                 console.rule("[bold cyan]Etapa 1/3: documentos[/bold cyan]")
                 try:
                     res_docs = sincronizar_documentos(
-                        context=context, page=page, opciones=opciones_docs,
-                        inventario=inventario, estado=estado, mem=mem, console=console,
+                        context=context,
+                        page=page,
+                        opciones=opciones_docs,
+                        inventario=inventario,
+                        estado=estado,
+                        mem=mem,
+                        console=console,
                     )
                 except SessionExpired as e:
                     err_docs = f"sesion expirada: {e}"
@@ -934,7 +1075,10 @@ def sync(
                 console.rule("[bold cyan]Etapa 2/3: extractos[/bold cyan]")
                 try:
                     res_ext = sincronizar_extractos(
-                        page=page, inv_ext=inv_ext, mem=mem, console=console,
+                        page=page,
+                        inv_ext=inv_ext,
+                        mem=mem,
+                        console=console,
                         retry_doc=cfg.retry_doc,
                     )
                 except SessionExpired as e:
@@ -950,7 +1094,9 @@ def sync(
                 console.rule("[bold cyan]Etapa 3/3: cartera[/bold cyan]")
                 try:
                     res_cart = sincronizar_cartera(
-                        page=page, mem=mem, console=console,
+                        page=page,
+                        mem=mem,
+                        console=console,
                         retry_doc=cfg.retry_doc,
                     )
                     if not res_cart.ok and res_cart.error:
@@ -981,9 +1127,12 @@ def sync(
 
     _renderear_resumen_sync(
         plan=plan,
-        res_docs=res_docs, err_docs=err_docs,
-        res_ext=res_ext, err_ext=err_ext,
-        res_cart=res_cart, err_cart=err_cart,
+        res_docs=res_docs,
+        err_docs=err_docs,
+        res_ext=res_ext,
+        err_ext=err_ext,
+        res_cart=res_cart,
+        err_cart=err_cart,
     )
 
     # Exit code: 0 si todo OK; 3 si hubo errores parciales (excepciones por etapa
