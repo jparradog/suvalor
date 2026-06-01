@@ -105,6 +105,9 @@ DOWNLOAD_FILENAME = "VerDocumentoElectronico.pdf"
 # --- Nombres de archivo que escribe el sitio (subcomandos nuevos) ---
 EXTRACTO_TMP_PATTERN = "extracto-{id}.pdf"
 CARTERA_TMP_FILENAME = "Portafolio.xls"
+TESORERIA_FORMATOS_EXPORT = ("pdf", "xls")
+TESORERIA_FORMATOS = (*TESORERIA_FORMATOS_EXPORT, "both")
+TESORERIA_TMP_SUFFIX = ".tmp"
 
 # --- IDs ASP.NET (no cambiar) ---
 ID_TIPO_DOC = "ctl00_Contenedor_ucConsultarDocumentosElectronicos_ddlTipoDocumento"

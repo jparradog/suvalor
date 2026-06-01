@@ -9,9 +9,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .rangos import partir_en_rangos
+from .tipos import TESORERIA_DIR, TESORERIA_FORMATOS, TESORERIA_FORMATOS_EXPORT
 from .verificacion import verificar_descarga
 
-_FORMATOS_TESORERIA = {"pdf", "xls", "both"}
+_FORMATOS_TESORERIA = set(TESORERIA_FORMATOS)
+_FORMATOS_EXPORT_TESORERIA = set(TESORERIA_FORMATOS_EXPORT)
 _RE_TAG_TESORERIA = re.compile(r"^[a-z0-9][a-z0-9._-]{0,39}$")
 
 
@@ -112,7 +114,9 @@ def promover_candidato_tesoreria(
         detalle = _borrar_candidato(candidato, destino)
         if detalle:
             motivo = f"{motivo}; {detalle}" if motivo else detalle
-        return ResultadoPromocionTesoreria(False, motivo or "candidato invalido", destino)
+        return ResultadoPromocionTesoreria(
+            False, motivo or "candidato invalido", destino
+        )
 
     try:
         destino.parent.mkdir(parents=True, exist_ok=True)
@@ -129,14 +133,14 @@ def promover_candidato_tesoreria(
 def construir_destino_tesoreria(
     *, base: Path, desde: dt.date, hasta: dt.date, formato: str, tag: str = ""
 ) -> Path:
-    if formato not in {"pdf", "xls"}:
+    if formato not in _FORMATOS_EXPORT_TESORERIA:
         raise ValueError("formato destino debe ser pdf o xls")
     sufijo = f"_{canonicalizar_tag_tesoreria(tag)}" if tag else ""
     nombre = (
         f"{desde.isoformat()}_{hasta.isoformat()}_movimientos_tesoreria"
         f"{sufijo}.{formato}"
     )
-    return base / "Tesoreria" / str(desde.year) / nombre
+    return base / TESORERIA_DIR.name / str(desde.year) / nombre
 
 
 def _dmy_a_date(valor: str) -> dt.date:
@@ -161,9 +165,13 @@ def construir_plan_tesoreria(
         raise ValueError("--from y --to deben usar formato YYYY-MM-DD") from e
     if desde > hasta:
         raise ValueError("--from no puede ser posterior a --to")
+    if account is not None and not account.strip():
+        raise ValueError("--account no puede estar vacio")
     if account is not None and not tag:
         raise ValueError("--account requiere --tag seguro y no vacio")
     tag_ok = canonicalizar_tag_tesoreria(tag) if tag else ""
+    if account is not None and tag != tag_ok:
+        raise ValueError("--account requiere --tag canonico para evitar colisiones")
     formatos = formatos_tesoreria(formato)
     rangos = [
         (_dmy_a_date(r.desde_dmy), _dmy_a_date(r.hasta_dmy))

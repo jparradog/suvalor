@@ -29,6 +29,50 @@ def test_tesoreria_help_expone_scope_privado(monkeypatch):
         ["tesoreria", "--from", "2026-01-01", "--to", "2026-01-31", "--format", "csv"],
         ["tesoreria", "--from", "2026-01-01", "--to", "2026-01-31", "--account", "raw"],
         ["tesoreria", "--from", "2026-01-01", "--to", "2026-01-31", "--account", ""],
+        [
+            "tesoreria",
+            "--from",
+            "2026-01-01",
+            "--to",
+            "2026-01-31",
+            "--account",
+            "",
+            "--tag",
+            "corto",
+        ],
+        [
+            "tesoreria",
+            "--from",
+            "2026-01-01",
+            "--to",
+            "2026-01-31",
+            "--account",
+            "raw",
+            "--tag",
+            "   ",
+        ],
+        [
+            "tesoreria",
+            "--from",
+            "2026-01-01",
+            "--to",
+            "2026-01-31",
+            "--account",
+            "raw",
+            "--tag",
+            "mi cuenta",
+        ],
+        [
+            "tesoreria",
+            "--from",
+            "2026-01-01",
+            "--to",
+            "2026-01-31",
+            "--account",
+            "raw",
+            "--tag",
+            " corto ",
+        ],
         ["tesoreria", "--from", "2026-01-01", "--to", "2026-01-31", "--tag", "../x"],
     ],
 )
@@ -61,6 +105,29 @@ def test_tesoreria_valido_falla_cerrado_sin_abrir_browser(monkeypatch, formato):
     assert "Tesoreria" in result.stdout
     assert "deshabilitada" in result.stdout
     assert "texto privado" not in result.stdout
+    assert "corto" in result.stdout
+
+
+def test_tesoreria_account_con_tag_seguro_no_filtra_account(monkeypatch):
+    monkeypatch.setattr(cli_mod, "abrir_navegador", _no_browser)
+    result = runner.invoke(
+        app,
+        [
+            "tesoreria",
+            "--from",
+            "2026-01-01",
+            "--to",
+            "2026-01-31",
+            "--account",
+            "Cuenta Privada 123",
+            "--tag",
+            "mi-cuenta",
+        ],
+    )
+    assert result.exit_code == 3
+    assert "Cuenta Privada" not in result.stdout
+    assert "123" not in result.stdout
+    assert "mi-cuenta" in result.stdout
 
 
 def test_sync_help_no_incluye_tesoreria(monkeypatch):

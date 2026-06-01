@@ -27,7 +27,12 @@ from .parseo import parsear_fecha_grilla
 from .pagina import Fila, detectar_sesion_expirada
 from .tesoreria import ResultadoPromocionTesoreria, promover_candidato_tesoreria
 from .timings import MemoriaTimings
-from .tipos import DOWNLOAD_FILENAME, POSTBACK_TARGET_GV
+from .tipos import (
+    DOWNLOAD_FILENAME,
+    POSTBACK_TARGET_GV,
+    TESORERIA_FORMATOS_EXPORT,
+    TESORERIA_TMP_SUFFIX,
+)
 from .verificacion import verificar_descarga
 
 
@@ -62,9 +67,9 @@ def guardar_reporte_tesoreria(
     *, destino: Path, formato: str, guardar: GuardarTesoreria
 ) -> ResultadoPromocionTesoreria:
     """Guarda un reporte Tesoreria a candidato temporal y lo promueve."""
-    if formato not in {"pdf", "xls"}:
+    if formato not in TESORERIA_FORMATOS_EXPORT:
         return ResultadoPromocionTesoreria(False, "formato invalido", destino)
-    candidato = destino.with_name(f"{destino.name}.tmp")
+    candidato = destino.with_name(f"{destino.name}{TESORERIA_TMP_SUFFIX}")
     try:
         candidato.unlink(missing_ok=True)
     except OSError:
