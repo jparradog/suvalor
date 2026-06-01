@@ -20,6 +20,7 @@ mas frecuentes de falso positivo:
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from zipfile import BadZipFile, ZipFile
 
@@ -241,7 +242,9 @@ def es_reporte_fondos_valido(path: Path) -> tuple[bool, str]:
 
 def _html_tesoreria_con_tabla(texto: str) -> bool:
     bajo = texto.lower()
-    return "<table" in bajo and "<tr" in bajo and ("<td" in bajo or "<th" in bajo)
+    if "<table" not in bajo or "<td" not in bajo:
+        return False
+    return len(re.findall(r"<tr\b", bajo)) >= 2
 
 
 def _es_texto_tesoreria_delimitado_valido(texto: str) -> bool:

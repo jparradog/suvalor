@@ -1,4 +1,5 @@
 """Tests de la memoria adaptativa de timings (no requiere Playwright)."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -9,9 +10,7 @@ from suvalor.timings import (
     BUFFER_MS,
     DEFAULTS_MS,
     MINIMO_MS,
-    Cronometro,
     MemoriaTimings,
-    StatsOperacion,
     medir,
 )
 
@@ -25,6 +24,12 @@ def test_sin_historial_usa_default(mem: MemoriaTimings):
     # con n_total=0 devuelve el default conservador
     assert mem.timeout_ms("descarga") >= DEFAULTS_MS["descarga"]
     assert mem.timeout_ms("consulta") >= DEFAULTS_MS["consulta"]
+
+
+def test_tesoreria_tiene_default_y_piso_explicitos(mem: MemoriaTimings):
+    assert "tesoreria" in DEFAULTS_MS
+    assert "tesoreria" in MINIMO_MS
+    assert mem.timeout_ms("tesoreria") >= DEFAULTS_MS["tesoreria"]
 
 
 def test_registrar_actualiza_percentiles(mem: MemoriaTimings):

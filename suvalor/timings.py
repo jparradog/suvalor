@@ -16,6 +16,7 @@ Persistencia: `_state/timings.json`. Por cada operacion se guarda una ventana
 movil de las ultimas N=50 mediciones (en milisegundos) y los percentiles
 calculados. Si el archivo no existe, partimos de los defaults conservadores.
 """
+
 from __future__ import annotations
 
 import json
@@ -38,8 +39,9 @@ DEFAULTS_MS: dict[str, int] = {
     "page_change": 7_000,
     "navegacion": 5_000,
     # Subcomandos nuevos:
-    "extracto": 8_000,   # GET de pdfExtractoConsolidado.aspx?id=...
-    "cartera": 10_000,   # POST btnExcel -> Portafolio.xls
+    "extracto": 8_000,  # GET de pdfExtractoConsolidado.aspx?id=...
+    "cartera": 10_000,  # POST btnExcel -> Portafolio.xls
+    "tesoreria": 10_000,  # POST export Tesoreria -> PDF/XLS
 }
 
 # Piso minimo (ms) — nunca esperar menos que esto, aunque el p95 sea bajisimo.
@@ -50,6 +52,7 @@ MINIMO_MS: dict[str, int] = {
     "navegacion": 2_000,
     "extracto": 4_000,
     "cartera": 4_000,
+    "tesoreria": 4_000,
 }
 
 # Buffer agregado al p95 para fijar el timeout maximo (ms).
@@ -126,9 +129,7 @@ class MemoriaTimings:
         if self.path.exists():
             try:
                 data = json.loads(self.path.read_text(encoding="utf-8"))
-                self.stats = {
-                    k: StatsOperacion.from_dict(v) for k, v in data.items()
-                }
+                self.stats = {k: StatsOperacion.from_dict(v) for k, v in data.items()}
             except (json.JSONDecodeError, ValueError):
                 # archivo corrupto -> empezamos limpio
                 self.stats = {}
@@ -172,10 +173,10 @@ class MemoriaTimings:
         s = self.stats.get(op)
         if not s or s.n_total == 0:
             d = DEFAULTS_MS.get(op, 5_000)
-            return f"sin historial (default {d/1000:.1f}s)"
+            return f"sin historial (default {d / 1000:.1f}s)"
         return (
-            f"p50={s.p50/1000:.1f}s p95={s.p95/1000:.1f}s "
-            f"max={s.max_visto/1000:.1f}s n={s.n_total}"
+            f"p50={s.p50 / 1000:.1f}s p95={s.p95 / 1000:.1f}s "
+            f"max={s.max_visto / 1000:.1f}s n={s.n_total}"
         )
 
     def operaciones(self) -> Iterable[str]:

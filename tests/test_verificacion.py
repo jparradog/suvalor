@@ -284,7 +284,12 @@ class TestEsTabularTesoreriaValido:
 
     def test_acepta_html_con_tabla_y_celda(self, tmp_path):
         p = tmp_path / "tesoreria.xls"
-        p.write_text("<html><body><table><tr><td>Valor</td></tr></table></body></html>")
+        p.write_text(
+            "<html><body><table>"
+            "<tr><th>Fecha</th><th>Valor</th></tr>"
+            "<tr><td>2026-01-01</td><td>100</td></tr>"
+            "</table></body></html>"
+        )
         assert es_tabular_tesoreria_valido(p) == (True, "")
 
     @pytest.mark.parametrize("sep", [",", ";", "\t"])
@@ -301,6 +306,8 @@ class TestEsTabularTesoreriaValido:
             "<html><body>Error de aplicacion<table><tr><td>x</td></tr></table></body></html>",
             "foo,bar\n1,2\n",
             "Fecha,Valor\n2026-01-01\n",
+            "Fecha\tDocumento\tDetalle\tObservacion\tValor\t\r\n",
+            "<html><body><table><tr><th>Fecha</th><th>Valor</th></tr></table></body></html>",
             "PK-no-es-zip-valido",
             "\x00\x01\x02\x03",
         ],
