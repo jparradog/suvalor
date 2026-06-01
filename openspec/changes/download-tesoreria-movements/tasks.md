@@ -16,7 +16,7 @@
 - [x] 2.2 Modify `suvalor/rangos.py` or a pure helper: plan explicit Tesoreria date chunks using `MAX_DIAS_POR_RANGO == 89`.
 - [ ] 2.3 Modify `suvalor/tipos.py`: add safe constants/formats/temp naming and destination builder; enforce sanitized tag/collision rules before path creation.
 - [x] 2.4 Modify `suvalor/verificacion.py`: implement `es_tabular_tesoreria_valido` and PDF/XLS dispatcher with exact structures from the spec.
-- [ ] 2.5 Modify `suvalor/descargador.py`: download each format to candidate temp, validate, then atomic `replace()` final; never delete prior valid finals on failure.
+- [x] 2.5 Modify `suvalor/descargador.py`: download each format to candidate temp, validate, then atomic `replace()` final; never delete prior valid finals on failure.
 - [x] 2.6 Modify `suvalor/orquestador.py`: add `ResumenTesoreria` and pure/integration-lite flow hooks; summaries expose counts only, not account labels.
 
 ## Phase 3: Selector Evidence Gate and Automation

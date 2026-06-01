@@ -13,6 +13,7 @@ Se reintenta `retry_doc` veces; si todas fallan, se registra en fallos.tsv.
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -24,6 +25,7 @@ from .diagnosticos import diagnosticar_fallo_portal, sanitizar_diagnostico
 from .estado import Inventario, registrar_fallo
 from .parseo import parsear_fecha_grilla
 from .pagina import Fila, detectar_sesion_expirada
+from .tesoreria import ResultadoPromocionTesoreria, promover_candidato_tesoreria
 from .timings import MemoriaTimings
 from .tipos import DOWNLOAD_FILENAME, POSTBACK_TARGET_GV
 from .verificacion import verificar_descarga
@@ -51,6 +53,44 @@ def construir_identidad_descarga(fila: Fila, codigo: str) -> IdentidadDescarga:
         clave=clave,
         nombre=f"{fecha_iso}_{codigo}_{doc_num}.pdf",
     )
+
+
+GuardarTesoreria = Callable[[Path], None]
+
+
+def guardar_reporte_tesoreria(
+    *, destino: Path, formato: str, guardar: GuardarTesoreria
+) -> ResultadoPromocionTesoreria:
+    """Guarda un reporte Tesoreria a candidato temporal y lo promueve."""
+    if formato not in {"pdf", "xls"}:
+        return ResultadoPromocionTesoreria(False, "formato invalido", destino)
+    candidato = destino.with_name(f"{destino.name}.tmp")
+    try:
+        candidato.unlink(missing_ok=True)
+    except OSError:
+        return ResultadoPromocionTesoreria(False, "no pude borrar candidato", destino)
+    try:
+        candidato.parent.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return ResultadoPromocionTesoreria(False, "no pude preparar candidato", destino)
+
+    try:
+        guardar(candidato)
+    except Exception:
+        try:
+            candidato.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return ResultadoPromocionTesoreria(False, "exportacion fallo", destino)
+
+    try:
+        return promover_candidato_tesoreria(candidato, destino, formato=formato)
+    except ValueError:
+        try:
+            candidato.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return ResultadoPromocionTesoreria(False, "formato invalido", destino)
 
 
 def cerrar_tabs_pdf(context: BrowserContext) -> None:
