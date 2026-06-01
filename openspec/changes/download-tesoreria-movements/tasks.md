@@ -21,7 +21,7 @@
 
 ## Phase 3: Selector Evidence Gate and Automation
 
-- [ ] 3.1 Before page automation, update `docs/SITE_NOTES.md` or redacted fixtures with Tesoreria ASP.NET URL and date/account/PDF/Excel control IDs/selectors; if missing, stop implementation.
+- [x] 3.1 Before page automation, update `docs/SITE_NOTES.md` or redacted fixtures with Tesoreria ASP.NET URL and date/account/PDF/Excel control IDs/selectors; if missing, stop implementation.
 - [ ] 3.2 Only after 3.1, modify `suvalor/pagina.py`/`suvalor/descargador.py` to navigate Tesoreria, fill dates, optionally select account without echoing labels, and export PDF/XLS.
 - [x] 3.3 Add pure integration-lite tests in `tests/test_tesoreria_orquestador.py` using monkeypatches only; no network, Playwright, or portal access.
 

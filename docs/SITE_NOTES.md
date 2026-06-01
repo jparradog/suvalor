@@ -1,6 +1,6 @@
 # Hallazgos tecnicos del portal
 
-> **Ultima verificacion**: 2026-04-28 — los IDs ASP.NET, URLs y
+> **Ultima verificacion**: 2026-06-01 — los IDs ASP.NET, URLs y
 > restricciones documentadas reflejan el estado del portal a esa fecha.
 > Si encontras divergencias, abrir un PR con el cambio + fecha nueva.
 
@@ -231,7 +231,7 @@ Misma logica de retry si falla.
 
 | Funcion | URL | Notas |
 |---|---|---|
-| Movimientos de Tesoreria | `/consultas/consultarMovimientoTesoreria.aspx` | Evidencia manual redacted 2026-06-01: cuenta `ctl00_Contenedor_mddlCuentasMultiproducto` (4 opciones; textos/valores no documentados), fechas `ctl00_Contenedor_wcFechaInicial` y `ctl00_Contenedor_wcFechaFinal`, PDF `ctl00_Contenedor_btnMovTesoreriaPDF`, Excel `ctl00_Contenedor_btnMovTesoreriaExcel`. PDF disparo download `MovTesoreria-<id>.pdf`; Excel disparo `Movimientos_Tesoreria.xls`. Fecha futura muestra alert `La fecha final no puede ser mayor o igual a la fecha actual`. Falta marcador redacted de sin datos antes de automatizar no-data; mientras falte, usar fallo conservador y no crear archivos de exito falsos. |
+| Movimientos de Tesoreria | `/consultas/consultarMovimientoTesoreria.aspx` | Evidencia manual redacted 2026-06-01: cuenta `ctl00_Contenedor_mddlCuentasMultiproducto` (4 opciones; textos/valores no documentados), fechas `ctl00_Contenedor_wcFechaInicial` y `ctl00_Contenedor_wcFechaFinal`, PDF `ctl00_Contenedor_btnMovTesoreriaPDF`, Excel `ctl00_Contenedor_btnMovTesoreriaExcel`. PDF disparo download `MovTesoreria-<id>.pdf`; Excel disparo `Movimientos_Tesoreria.xls`. Fecha futura muestra alert `La fecha final no puede ser mayor o igual a la fecha actual`. Evidencia redacted sin datos: rango valido sin movimientos produjo `Movimientos_Tesoreria.xls` de 44 bytes con solo encabezado TSV `Fecha\tDocumento\tDetalle\tObservacion\tValor\t\r\n`, sin filas de movimientos. Tratar ese archivo como sin datos y no crear archivos de exito falsos ni registrar movimiento exitoso. |
 | Movimientos Wompi | `/consultas/MovimientosWompi.aspx` | No explorado. |
 | Informe movimientos fondos | `/consultas/InformeFondos.aspx` | Opt-in `suvalor fondos` preparado en modo fail-closed. Automatizacion de pagina deshabilitada hasta documentar evidencia redacted de inputs de fecha, accion de exportacion y marcador de sin datos. v1 usa cuenta default + fondo `TODOS`; no hay `--account` ni `--fund`. |
 | Suscripcion a documentos | `/operaciones/suscripcionDocumentos.aspx` | Form de suscripcion (no descarga). |

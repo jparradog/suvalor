@@ -37,10 +37,12 @@ def test_readme_documenta_tesoreria_staging_privacidad_y_sync_final():
         assert muestra not in readme
 
 
-def test_site_notes_declara_sin_datos_bloqueado_y_fallo_conservador():
+def test_site_notes_documenta_sin_datos_tesoreria_redacted():
     site_notes = _texto("docs/SITE_NOTES.md")
 
     assert "movimientos de tesoreria" in site_notes
-    assert "falta marcador redacted de sin datos" in site_notes
-    assert "fallo conservador" in site_notes
+    assert "evidencia redacted sin datos" in site_notes
+    assert "fecha\\tdocumento\\tdetalle\\tobservacion\\tvalor" in site_notes
+    assert "44 bytes" in site_notes
+    assert "sin filas de movimientos" in site_notes
     assert "no crear archivos de exito falsos" in site_notes
