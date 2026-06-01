@@ -83,6 +83,8 @@ from .tipos import (
     NOMBRES_TIPOS,
     STATE_DIR,
     TIPOS_DEFAULT,
+    TIPOS_LEGACY_NO_DISPONIBLES,
+    TIPOS_SELECTOR_ACTUALES,
     TipoDoc,
 )
 
@@ -179,6 +181,22 @@ def _root(
 # --------------------------------------------------------------------------- #
 
 
+def _tipos_actuales_texto() -> str:
+    return ", ".join(sorted(TIPOS_SELECTOR_ACTUALES))
+
+
+def _reportar_tipos_no_disponibles(tipos: list[str]) -> None:
+    no_disponibles = [t for t in tipos if t in TIPOS_LEGACY_NO_DISPONIBLES]
+    if not no_disponibles:
+        return
+    console.print(
+        "[red]ERROR:[/red] tipos no disponibles en el selector actual "
+        f"{no_disponibles}. Quite CC del config o use tipos actuales: "
+        f"{_tipos_actuales_texto()}."
+    )
+    raise typer.Exit(code=2)
+
+
 def _parsear_tipos(types_raw: str, cfg: Config) -> list[str]:
     """Toma el string `--types RC,NC` y devuelve la lista validada."""
     raw = types_raw.strip() or ",".join(cfg.tipos_default)
@@ -187,9 +205,10 @@ def _parsear_tipos(types_raw: str, cfg: Config) -> list[str]:
     if invalidos:
         console.print(
             f"[red]ERROR:[/red] tipos invalidos {invalidos}. "
-            f"Validos: {list(NOMBRES_TIPOS)}"
+            f"Validos actuales: {_tipos_actuales_texto()}"
         )
         raise typer.Exit(code=2)
+    _reportar_tipos_no_disponibles(tipos)
     if not tipos:
         console.print("[red]ERROR:[/red] sin tipos seleccionados.")
         raise typer.Exit(code=2)
@@ -238,7 +257,7 @@ def descargar(
     types: str = typer.Option(
         "",
         "--types",
-        help="Tipos a consultar separados por coma (RC,NC,FB,PB,CE,CC). "
+        help="Tipos a consultar separados por coma (RC,NC,CE; FB/PB opt-in). "
              "Si vacio, usa el default del config.",
     ),
     smoke_test: bool = typer.Option(False, "--smoke-test", help="Solo ultimos 30 dias."),
@@ -380,6 +399,21 @@ def reset(
         console.print("[yellow]No habia nada que borrar[/yellow]")
 
 
+def _particionar_fallos_recuperables(
+    fallos: list[dict[str, str]],
+) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    """Separa fallos retryables de tipos legacy/no disponibles."""
+    recuperables: list[dict[str, str]] = []
+    omitidos: list[dict[str, str]] = []
+    for fallo in fallos:
+        tipo = fallo.get("tipo", "").upper()
+        if tipo in TIPOS_SELECTOR_ACTUALES:
+            recuperables.append(fallo)
+        else:
+            omitidos.append(fallo)
+    return recuperables, omitidos
+
+
 @app.command("recuperar-fallidos")
 def recuperar_fallidos() -> None:
     """Re-intenta cada fallo en `_Fallidos/fallos.tsv`."""
@@ -387,6 +421,20 @@ def recuperar_fallidos() -> None:
     if not fallos:
         console.print("[green]No hay fallos pendientes.[/green]")
         return
+
+    fallos, omitidos = _particionar_fallos_recuperables(fallos)
+    if omitidos:
+        tipos_omitidos = sorted({f.get("tipo", "?") for f in omitidos})
+        console.print(
+            "[yellow]Saltados por tipo no disponible en el selector actual:[/yellow] "
+            f"{len(omitidos)} ({', '.join(tipos_omitidos)})"
+        )
+    if not fallos:
+        console.print(
+            "[green]No hay fallos recuperables para consultar en el portal.[/green]"
+        )
+        return
+
     console.print(f"[cyan]Recuperando {len(fallos)} fallos...[/cyan]")
 
     cfg = Config.cargar()
@@ -744,7 +792,7 @@ def sync(
     no_cartera: bool = typer.Option(False, "--no-cartera", help="Saltarse snapshot de cartera."),
     types: str = typer.Option(
         "", "--types",
-        help="Tipos a consultar separados por coma (RC,NC,FB,PB,CE,CC). "
+        help="Tipos a consultar separados por coma (RC,NC,CE; FB/PB opt-in). "
              "Si vacio, usa el default del config. Solo afecta a la etapa de docs.",
     ),
     backfill: bool = typer.Option(False, "--backfill", help="Docs: consulta historica desde 2024-01-01."),

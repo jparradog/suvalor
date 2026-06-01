@@ -43,11 +43,16 @@ cuando el portal cambie y rompa el script.
 - **Extractos**: solo los **ultimos 12 meses** estan disponibles. Para
   historico anterior hay que pedirlo por canales del banco.
 - **Sesion**: expira a los **~7 minutos sin actividad**.
-- **FB (Facturas de Bolsa)** y **PB (Papeletas de Bolsa)**: el server da
-  **504** consistentemente al generar el PDF (incluso con rangos pequeños
-  de 1 mes). Por eso estan **excluidos del default**.
-- **CC (Certificados de Custodia)**: a veces sin datos en los rangos
-  consultados; comportamiento variable.
+- **Selector actual de documentos**: evidencia manual redacted de issue #1
+  muestra `CE`, `FB`, `NC`, `PB` y `RC`; no muestra `CC`.
+- **Defaults seguros**: el cliente consulta por default solo `RC`, `NC`,
+  `CE`. `FB` y `PB` son opt-in con `--types`.
+- **CC (Certificados de Custodia)**: tipo legacy local. Debe seguir siendo
+  legible en `_state/`, inventarios y `fallos.tsv`, pero no se debe planear
+  como consulta nueva porque no aparece en el selector actual.
+- **recuperar-fallidos**: las filas legacy `CC` se saltan antes de cargar
+  config/timings o abrir navegador. Si hay mezcla con tipos actuales, solo
+  se reintentan los actuales.
 
 ## Documentos contables — flujo de descarga
 
@@ -63,7 +68,7 @@ ctl00$Contenedor$ucConsultarDocumentosElectronicos$gvDocumentos  (postback de la
 
 ### Flujo
 
-1. Configurar `ddlTipoDocumento` (RC, NC, FB, PB, CE, CC).
+1. Configurar `ddlTipoDocumento` (selector actual: CE, FB, NC, PB, RC).
 2. Configurar `wcFechaInicial` y `wcFechaFinal` (rango ≤ 89 dias).
 3. Click `btnConsultar`.
 4. La grilla `gvDocumentos` se rellena. Cada fila tiene un link `Select$N`

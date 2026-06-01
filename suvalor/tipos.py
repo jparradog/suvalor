@@ -7,11 +7,13 @@ Aprendizajes preservados del script monolitico:
 - La sesion expira a los ~7 minutos de inactividad. El sitio entonces redirige
   a `terminarSesion.aspx` o vuelve a mostrar el form de login.
 """
+
 from __future__ import annotations
 
 import os
 from enum import Enum
 from pathlib import Path
+
 
 # --- Rutas ---
 # BASE: directorio donde el script lee/escribe inventarios, perfil de Chrome,
@@ -105,9 +107,7 @@ ID_TIPO_DOC = "ctl00_Contenedor_ucConsultarDocumentosElectronicos_ddlTipoDocumen
 ID_FECHA_INI = "ctl00_Contenedor_ucConsultarDocumentosElectronicos_wcFechaInicial"
 ID_FECHA_FIN = "ctl00_Contenedor_ucConsultarDocumentosElectronicos_wcFechaFinal"
 ID_BTN_CONSULTAR = "ctl00_Contenedor_ucConsultarDocumentosElectronicos_btnConsultar"
-POSTBACK_TARGET_GV = (
-    "ctl00$Contenedor$ucConsultarDocumentosElectronicos$gvDocumentos"
-)
+POSTBACK_TARGET_GV = "ctl00$Contenedor$ucConsultarDocumentosElectronicos$gvDocumentos"
 
 # --- IDs ASP.NET extra (extractos / cartera) ---
 ID_DDL_PERIODO = "ddlPeriodo"
@@ -139,10 +139,15 @@ NOMBRES_TIPOS: dict[str, str] = {
     "CC": "CertificadosDeCustodia",
 }
 
-# Tipos por defecto para la corrida normal (los que NO suelen dar 504).
-# RC y NC son los mas frecuentes; CE y CC suelen tener pocos datos pero
-# tambien funcionan. FB y PB se excluyen por defecto porque el server da 504.
-TIPOS_DEFAULT = ["RC", "NC", "CE", "CC"]
+# Tipos que existen actualmente en el selector del portal para consultas nuevas.
+# CC se conserva como metadata legacy, pero no debe planear consultas nuevas.
+TIPOS_SELECTOR_ACTUALES = {"CE", "FB", "NC", "PB", "RC"}
+TIPOS_LEGACY_NO_DISPONIBLES = {"CC"}
+
+# Tipos por defecto para la corrida normal.
+# RC, NC y CE son seguros para el flujo default. FB y PB son opt-in; CC es
+# legacy local porque ya no aparece en el selector actual del portal.
+TIPOS_DEFAULT = ["RC", "NC", "CE"]
 
 # Limite duro del sitio: 89 dias por consulta. NO subir a 90.
 MAX_DIAS_POR_RANGO = 89

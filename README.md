@@ -169,9 +169,10 @@ uv run suvalor descargar
 ```
 
 Consulta desde `retro_days` antes de la ultima corrida hasta hoy. Salta
-documentos que ya estan en el inventario. Por default `RC`, `NC`, `CE`,
-`CC` (los que la plataforma genera bien; `FB` y `PB` se excluyen porque el
-servidor responde con 504).
+documentos que ya estan en el inventario. Por default usa solo `RC`, `NC`,
+`CE`. `FB` y `PB` son opt-in con `--types`; `CC` queda como tipo legacy
+local para leer inventarios/estado historico, pero ya no se consulta en el
+selector actual del portal.
 
 ### Backfill historico
 
@@ -194,9 +195,15 @@ uv run suvalor descargar --from 2025-06-01 --to 2025-09-30
 | `RC` | Recibos de Caja | Default |
 | `NC` | Notas Contables | Default |
 | `CE` | Comprobantes de Egreso | Default |
-| `CC` | Certificados de Custodia | Default |
-| `FB` | Facturas de Bolsa | Excluido — servidor responde 504 |
-| `PB` | Papeletas de Bolsa | Excluido — falla silenciosa |
+| `FB` | Facturas de Bolsa | Opt-in (`--types FB`); no default |
+| `PB` | Papeletas de Bolsa | Opt-in (`--types PB`); no default |
+| `CC` | Certificados de Custodia | Legacy local; no disponible para consultas nuevas |
+
+El selector actual del portal expone `CE`, `FB`, `NC`, `PB` y `RC`. Si un
+`config.toml` antiguo o un `--types` explicito incluye `CC`, el comando falla
+antes de abrir el navegador y pide usar tipos actuales. En
+`recuperar-fallidos`, las filas legacy `CC` se reportan como saltadas; si no
+queda ningun tipo actual para reintentar, no se abre Chrome ni se pide login.
 
 ### Otros subcomandos
 
@@ -227,7 +234,7 @@ retro_days = 60
 range_days = 89                # NO subir, el sitio limita en 89 dias
 retry_doc = 3
 max_pages_per_query = 50
-tipos_default = ["RC", "NC", "CE", "CC"]
+tipos_default = ["RC", "NC", "CE"]
 wait_min_consulta_s = 3.0
 wait_min_descarga_s = 5.0
 wait_min_page_change_s = 3.0

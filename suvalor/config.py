@@ -4,6 +4,7 @@ Si el archivo no existe, se usan defaults y NO se crea automaticamente
 (para no ensuciar `_state/`). El comando `suvalor config init` puede
 escribir un template; ver cli.py.
 """
+
 from __future__ import annotations
 
 import sys
@@ -62,8 +63,9 @@ retry_doc = 3
 # Cota dura por consulta para evitar loops infinitos en paginacion.
 max_pages_per_query = 50
 
-# Tipos a procesar en una corrida normal (sin --types). FB y PB suelen dar 504.
-tipos_default = ["RC", "NC", "CE", "CC"]
+# Tipos a procesar en una corrida normal (sin --types).
+# FB y PB son opt-in; CC es legacy local y ya no aparece en el selector actual.
+tipos_default = ["RC", "NC", "CE"]
 
 # Waits minimos (segundos). El sistema usa max(piso, p95 + buffer).
 wait_min_consulta_s = 3.0
