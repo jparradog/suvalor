@@ -20,6 +20,7 @@ las invocan despues de abrir browser + login_manual.
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -63,6 +64,11 @@ from .pagina import (
 )
 from .parseo import mes_es_a_iso
 from .rangos import RangoFechas
+from .tesoreria import (
+    PlanTesoreria,
+    debe_descargar_tesoreria,
+    promover_candidato_tesoreria,
+)
 from .timings import MemoriaTimings, medir
 from .verificacion import verificar_descarga
 from .tipos import (
@@ -122,6 +128,50 @@ class ResumenCartera:
     error: Optional[str] = None
     # Motivo de la verificacion post-descarga si fallo (HTML de login, etc.).
     motivo_verificacion: Optional[str] = None
+
+
+@dataclass
+class ResumenTesoreria:
+    nuevos: int = 0
+    saltados: int = 0
+    fallidos: int = 0
+    total: int = 0
+    detalle_fallidos: list[tuple[str, str]] = field(default_factory=list)
+
+
+ExportadorTesoreria = Callable[[Path, str], Path]
+
+
+def sincronizar_tesoreria_plan(
+    *, plan: PlanTesoreria, exportar: ExportadorTesoreria
+) -> ResumenTesoreria:
+    """Procesa un plan de tesoreria con un exportador inyectado y offline.
+
+    No navega ni abre browser: el caller provee candidatos ya descargados.
+    """
+    resumen = ResumenTesoreria(total=len(plan.destinos))
+    for destino in plan.destinos:
+        formato = destino.suffix.lstrip(".")
+        if not debe_descargar_tesoreria(
+            destino, formato=formato, redownload=plan.redownload
+        ):
+            resumen.saltados += 1
+            continue
+
+        try:
+            candidato = exportar(destino, formato)
+        except Exception:
+            resumen.fallidos += 1
+            resumen.detalle_fallidos.append((destino.name, "exportacion fallo"))
+            continue
+
+        resultado = promover_candidato_tesoreria(candidato, destino, formato=formato)
+        if resultado.ok:
+            resumen.nuevos += 1
+        else:
+            resumen.fallidos += 1
+            resumen.detalle_fallidos.append((destino.name, "promocion fallo"))
+    return resumen
 
 
 def _renderear_panel_rango(console: Console, rango: RangoFechas, tipos: list[str]) -> None:
