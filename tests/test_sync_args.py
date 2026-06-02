@@ -7,6 +7,7 @@ construccion del plan y del CLI (ayuda, deteccion de subcomandos, etc.).
 from __future__ import annotations
 
 from io import StringIO
+from typing import cast
 
 import pytest
 import typer
@@ -31,7 +32,9 @@ from suvalor.orquestador import (
     ResumenCartera,
     ResumenCorrida,
     ResumenExtractos,
+    ResumenTesoreria,
 )
+from suvalor.tesoreria import PlanTesoreria
 
 
 runner = CliRunner()
@@ -58,6 +61,14 @@ class TestTiposDocumentosDisponibles:
         contenido = destino.read_text(encoding="utf-8")
         assert 'tipos_default = ["RC", "NC", "CE"]' in contenido
         assert 'tipos_default = ["RC", "NC", "CE", "CC"]' not in contenido
+
+    def test_config_tesoreria_en_sync_default_y_template(self, tmp_path):
+        assert Config().tesoreria_en_sync is True
+        assert "tesoreria_en_sync = true" in TEMPLATE_TOML
+
+        destino = escribir_template(tmp_path / "config.toml")
+        contenido = destino.read_text(encoding="utf-8")
+        assert "tesoreria_en_sync = true" in contenido
 
     @pytest.mark.parametrize("types_raw", ["CC", "RC,CC"])
     def test_parsear_tipos_rechaza_cc(self, types_raw, capsys):
@@ -199,38 +210,96 @@ class TestRecuperarFallidosTiposLegacy:
 
 class TestPlanDesdeFlags:
     def test_default_corre_todas(self):
-        plan = _plan_desde_flags(no_docs=False, no_extractos=False, no_cartera=False)
+        plan = _plan_desde_flags(
+            no_docs=False,
+            no_extractos=False,
+            no_cartera=False,
+            no_tesoreria=False,
+            tesoreria_en_sync=True,
+        )
         assert plan.do_docs is True
         assert plan.do_extractos is True
         assert plan.do_cartera is True
+        assert plan.do_tesoreria is True
         assert plan.nada_que_hacer() is False
 
     def test_no_docs_se_respeta(self):
-        plan = _plan_desde_flags(no_docs=True, no_extractos=False, no_cartera=False)
+        plan = _plan_desde_flags(
+            no_docs=True,
+            no_extractos=False,
+            no_cartera=False,
+            no_tesoreria=False,
+            tesoreria_en_sync=True,
+        )
         assert plan.do_docs is False
         assert plan.do_extractos is True
         assert plan.do_cartera is True
 
     def test_no_extractos_se_respeta(self):
-        plan = _plan_desde_flags(no_docs=False, no_extractos=True, no_cartera=False)
+        plan = _plan_desde_flags(
+            no_docs=False,
+            no_extractos=True,
+            no_cartera=False,
+            no_tesoreria=False,
+            tesoreria_en_sync=True,
+        )
         assert plan.do_docs is True
         assert plan.do_extractos is False
         assert plan.do_cartera is True
 
     def test_no_cartera_se_respeta(self):
-        plan = _plan_desde_flags(no_docs=False, no_extractos=False, no_cartera=True)
+        plan = _plan_desde_flags(
+            no_docs=False,
+            no_extractos=False,
+            no_cartera=True,
+            no_tesoreria=False,
+            tesoreria_en_sync=True,
+        )
         assert plan.do_docs is True
         assert plan.do_extractos is True
         assert plan.do_cartera is False
 
     def test_combinacion_no_docs_no_cartera(self):
-        plan = _plan_desde_flags(no_docs=True, no_extractos=False, no_cartera=True)
+        plan = _plan_desde_flags(
+            no_docs=True,
+            no_extractos=False,
+            no_cartera=True,
+            no_tesoreria=False,
+            tesoreria_en_sync=True,
+        )
         assert plan.do_docs is False
         assert plan.do_extractos is True
         assert plan.do_cartera is False
 
+    def test_no_tesoreria_se_respeta(self):
+        plan = _plan_desde_flags(
+            no_docs=False,
+            no_extractos=False,
+            no_cartera=False,
+            no_tesoreria=True,
+            tesoreria_en_sync=True,
+        )
+        assert plan.do_tesoreria is False
+        assert plan.nada_que_hacer() is False
+
+    def test_config_apaga_tesoreria(self):
+        plan = _plan_desde_flags(
+            no_docs=False,
+            no_extractos=False,
+            no_cartera=False,
+            no_tesoreria=False,
+            tesoreria_en_sync=False,
+        )
+        assert plan.do_tesoreria is False
+
     def test_todo_apagado_marca_nada_que_hacer(self):
-        plan = _plan_desde_flags(no_docs=True, no_extractos=True, no_cartera=True)
+        plan = _plan_desde_flags(
+            no_docs=True,
+            no_extractos=True,
+            no_cartera=True,
+            no_tesoreria=True,
+            tesoreria_en_sync=True,
+        )
         assert plan.nada_que_hacer() is True
 
 
@@ -266,6 +335,11 @@ class TestCliHelp:
         assert result.exit_code == 0
         assert "--no-cartera" in result.stdout
 
+    def test_sync_help_lista_no_tesoreria(self):
+        result = runner.invoke(app, ["sync", "--help"])
+        assert result.exit_code == 0
+        assert "--no-tesoreria" in result.stdout
+
     def test_sync_help_lista_types(self):
         result = runner.invoke(app, ["sync", "--help"])
         assert result.exit_code == 0
@@ -284,13 +358,78 @@ class TestCliHelp:
 
 
 class TestSyncSinEtapas:
+    def test_sync_solo_tesoreria_ejecuta_una_sesion_manual(self, monkeypatch):
+        llamadas: dict[str, object] = {}
+        monkeypatch.setattr(
+            cli_mod.Config, "cargar", classmethod(lambda cls: Config(retro_days=2))
+        )
+        monkeypatch.setattr(cli_mod, "cargar_estado", lambda: object())
+        monkeypatch.setattr(cli_mod, "cargar_inventario", lambda: set())
+        monkeypatch.setattr(cli_mod, "cargar_inventario_extractos", lambda: set())
+        monkeypatch.setattr(cli_mod, "MemoriaTimings", lambda: _MemFake())
+        monkeypatch.setattr(cli_mod, "abrir_navegador", lambda: _NavFake())
+        monkeypatch.setattr(
+            cli_mod,
+            "login_manual",
+            lambda page, console: llamadas.setdefault("login", page),
+        )
+        monkeypatch.setattr(
+            cli_mod,
+            "sincronizar_documentos",
+            lambda **kwargs: pytest.fail("docs apagado"),
+        )
+        monkeypatch.setattr(
+            cli_mod,
+            "sincronizar_extractos",
+            lambda **kwargs: pytest.fail("extractos apagado"),
+        )
+        monkeypatch.setattr(
+            cli_mod,
+            "sincronizar_cartera",
+            lambda **kwargs: pytest.fail("cartera apagado"),
+        )
+
+        def sync_tesoreria(**kwargs):
+            llamadas["tesoreria"] = kwargs["plan"]
+            return ResumenTesoreria(nuevos=1, total=len(kwargs["plan"].destinos))
+
+        monkeypatch.setattr(cli_mod, "sincronizar_tesoreria", sync_tesoreria)
+
+        result = runner.invoke(
+            app, ["sync", "--no-docs", "--no-extractos", "--no-cartera"]
+        )
+
+        assert result.exit_code == 0
+        assert "login" in llamadas
+        plan = cast(PlanTesoreria, llamadas["tesoreria"])
+        assert plan.formatos == ["pdf", "xls"]
+        assert len(plan.destinos) == 2
+
+    def test_config_tesoreria_false_permite_apagar_todo_sin_browser(self, monkeypatch):
+        monkeypatch.setattr(
+            cli_mod.Config,
+            "cargar",
+            classmethod(lambda cls: Config(tesoreria_en_sync=False)),
+        )
+        monkeypatch.setattr(
+            cli_mod, "abrir_navegador", lambda: pytest.fail("no debe abrir navegador")
+        )
+
+        result = runner.invoke(
+            app, ["sync", "--no-docs", "--no-extractos", "--no-cartera"]
+        )
+
+        assert result.exit_code == 2
+        assert "deshabilitadas" in result.stdout
+
     def test_todas_etapas_apagadas_falla_con_exit_2(self):
         # Si entrara al try/with abrir_navegador() se intentaria lanzar Chrome
         # y el test tronaria con timeout. Si llega a exit_code=2 antes,
         # significa que _plan_desde_flags + el chequeo de nada_que_hacer
         # cortocircuitan correctamente.
         result = runner.invoke(
-            app, ["sync", "--no-docs", "--no-extractos", "--no-cartera"]
+            app,
+            ["sync", "--no-docs", "--no-extractos", "--no-cartera", "--no-tesoreria"],
         )
         assert result.exit_code == 2
         assert "ERROR" in result.stdout
@@ -304,7 +443,9 @@ class TestSyncSinEtapas:
 
 class TestRenderearResumen:
     def test_con_los_tres_ok(self, tmp_path):
-        plan = _PlanSync(do_docs=True, do_extractos=True, do_cartera=True)
+        plan = _PlanSync(
+            do_docs=True, do_extractos=True, do_cartera=True, do_tesoreria=True
+        )
         rdocs = ResumenCorrida(nuevos=5, saltados=10, fallidos=0)
         rext = ResumenExtractos(nuevos=2, saltados=4, fallidos=0)
         rcart = ResumenCartera(
@@ -322,10 +463,14 @@ class TestRenderearResumen:
             err_ext=None,
             res_cart=rcart,
             err_cart=None,
+            res_tes=ResumenTesoreria(nuevos=1, saltados=0, fallidos=0, total=1),
+            err_tes=None,
         )
 
     def test_con_etapas_skipped(self, tmp_path):
-        plan = _PlanSync(do_docs=False, do_extractos=False, do_cartera=True)
+        plan = _PlanSync(
+            do_docs=False, do_extractos=False, do_cartera=True, do_tesoreria=False
+        )
         rcart = ResumenCartera(
             ok=True,
             destino=tmp_path / "snap.xls",
@@ -340,10 +485,14 @@ class TestRenderearResumen:
             err_ext=None,
             res_cart=rcart,
             err_cart=None,
+            res_tes=None,
+            err_tes=None,
         )
 
     def test_con_errores_parciales_no_truena(self):
-        plan = _PlanSync(do_docs=True, do_extractos=True, do_cartera=True)
+        plan = _PlanSync(
+            do_docs=True, do_extractos=True, do_cartera=True, do_tesoreria=True
+        )
         _renderear_resumen_sync(
             plan=plan,
             res_docs=None,
@@ -352,6 +501,8 @@ class TestRenderearResumen:
             err_ext=None,
             res_cart=None,
             err_cart="No pude llegar a portafolio",
+            res_tes=ResumenTesoreria(nuevos=0, saltados=0, fallidos=1, total=1),
+            err_tes=None,
         )
 
     def test_detalle_fallidos_sanitiza_motivos(self, monkeypatch):
@@ -361,7 +512,9 @@ class TestRenderearResumen:
             "console",
             Console(file=salida, force_terminal=False, color_system=None, width=120),
         )
-        plan = _PlanSync(do_docs=True, do_extractos=False, do_cartera=False)
+        plan = _PlanSync(
+            do_docs=True, do_extractos=False, do_cartera=False, do_tesoreria=False
+        )
         rdocs = ResumenCorrida(
             nuevos=0,
             saltados=0,
@@ -382,6 +535,8 @@ class TestRenderearResumen:
             err_ext=None,
             res_cart=None,
             err_cart=None,
+            res_tes=None,
+            err_tes=None,
         )
 
         texto = salida.getvalue()

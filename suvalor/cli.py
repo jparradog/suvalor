@@ -43,6 +43,7 @@ from .orquestador import (
     ResumenCartera,
     ResumenCorrida,
     ResumenExtractos,
+    ResumenTesoreria,
     correr,
     persistir_estado,
     renderear_resumen,
@@ -172,6 +173,7 @@ def _root(
             no_docs=False,
             no_extractos=False,
             no_cartera=False,
+            no_tesoreria=False,
             types="",
             backfill=False,
             desde=None,
@@ -804,9 +806,10 @@ class _PlanSync:
     do_docs: bool
     do_extractos: bool
     do_cartera: bool
+    do_tesoreria: bool
 
     def nada_que_hacer(self) -> bool:
-        return not (self.do_docs or self.do_extractos or self.do_cartera)
+        return not (self.do_docs or self.do_extractos or self.do_cartera or self.do_tesoreria)
 
 
 def _plan_desde_flags(
@@ -814,12 +817,28 @@ def _plan_desde_flags(
     no_docs: bool,
     no_extractos: bool,
     no_cartera: bool,
+    no_tesoreria: bool,
+    tesoreria_en_sync: bool,
 ) -> _PlanSync:
     """Helper puro: traduce los `--no-X` a un plan de etapas. Testeable sin Playwright."""
     return _PlanSync(
         do_docs=not no_docs,
         do_extractos=not no_extractos,
         do_cartera=not no_cartera,
+        do_tesoreria=tesoreria_en_sync and not no_tesoreria,
+    )
+
+
+def _construir_plan_tesoreria_sync(*, cfg: Config, hoy: Optional[dt.date] = None):
+    """Plan default de Tesoreria para sync: ventana reciente hasta ayer."""
+    hoy = hoy or dt.date.today()
+    hasta = hoy - dt.timedelta(days=1)
+    desde = hasta - dt.timedelta(days=cfg.retro_days)
+    return construir_plan_tesoreria(
+        base=BASE,
+        desde_iso=desde.isoformat(),
+        hasta_iso=hasta.isoformat(),
+        formato="both",
     )
 
 
@@ -832,8 +851,10 @@ def _renderear_resumen_sync(
     err_ext: Optional[str],
     res_cart: Optional[ResumenCartera],
     err_cart: Optional[str],
+    res_tes: Optional[ResumenTesoreria],
+    err_tes: Optional[str],
 ) -> None:
-    """Imprime tabla rich con el resumen unificado de las tres etapas."""
+    """Imprime tabla rich con el resumen unificado de las etapas."""
     tabla = Table(title="Resumen sync", show_header=True, header_style="bold cyan")
     tabla.add_column("Etapa")
     tabla.add_column("Resultado")
@@ -881,6 +902,20 @@ def _renderear_resumen_sync(
     else:
         tabla.add_row("Cartera", "[red]ERROR: sin resultado[/red]")
 
+    if not plan.do_tesoreria:
+        tabla.add_row("Tesoreria", "[dim]saltado (--no-tesoreria/config)[/dim]")
+    elif err_tes:
+        tabla.add_row("Tesoreria", f"[red]ERROR: {err_tes}[/red]")
+    elif res_tes is not None:
+        tabla.add_row(
+            "Tesoreria",
+            f"nuevos=[green]{res_tes.nuevos}[/green] "
+            f"saltados=[yellow]{res_tes.saltados}[/yellow] "
+            f"fallidos=[red]{res_tes.fallidos}[/red]",
+        )
+    else:
+        tabla.add_row("Tesoreria", "[red]ERROR: sin resultado[/red]")
+
     console.print(tabla)
 
     # Sub-seccion: motivos de fallos de verificacion (solo si los hay).
@@ -896,8 +931,12 @@ def _renderear_resumen_sync(
         res_cart.motivo_verificacion
         if res_cart is not None and res_cart.motivo_verificacion else None
     )
+    motivos_tes = (
+        list(res_tes.detalle_fallidos)
+        if res_tes is not None and res_tes.detalle_fallidos else []
+    )
 
-    if motivos_docs or motivos_ext or motivo_cart:
+    if motivos_docs or motivos_ext or motivo_cart or motivos_tes:
         console.print("[bold]Detalle fallidos:[/bold]")
         for clave, motivo in motivos_docs:
             console.print(
@@ -911,6 +950,10 @@ def _renderear_resumen_sync(
             console.print(
                 f"  Cartera    -> Fallo verificacion: {_motivo_visible(motivo_cart)}"
             )
+        for clave, motivo in motivos_tes:
+            console.print(
+                f"  Tesoreria  -> Fallo verificacion: {clave} ({_motivo_visible(motivo)})"
+            )
 
 
 @app.command()
@@ -918,6 +961,7 @@ def sync(
     no_docs: bool = typer.Option(False, "--no-docs", help="Saltarse documentos contables."),
     no_extractos: bool = typer.Option(False, "--no-extractos", help="Saltarse extractos PDF."),
     no_cartera: bool = typer.Option(False, "--no-cartera", help="Saltarse snapshot de cartera."),
+    no_tesoreria: bool = typer.Option(False, "--no-tesoreria", help="Saltarse movimientos de tesoreria."),
     types: str = typer.Option(
         "", "--types",
         help="Tipos a consultar separados por coma (RC,NC,CE; FB/PB opt-in). "
@@ -929,29 +973,33 @@ def sync(
     smoke_test: bool = typer.Option(False, "--smoke-test", help="Docs: solo ultimos 30 dias."),
     max_docs: int = typer.Option(0, "--max-docs", help="Docs: limite de descargas (0 = sin limite)."),
 ) -> None:
-    """Sincroniza TODO en una sola sesion: docs + extractos + snapshot de cartera.
+    """Sincroniza TODO en una sola sesion: docs + extractos + cartera + tesoreria.
 
     Una sola corrida de Playwright + un solo login manual. Si una etapa falla
     (sesion expira, error de red), las demas siguen y el resumen final lo
     refleja. Es el comando default cuando se invoca `uv run suvalor` sin args.
     """
+    cfg = Config.cargar()
     plan = _plan_desde_flags(
         no_docs=no_docs, no_extractos=no_extractos, no_cartera=no_cartera,
+        no_tesoreria=no_tesoreria, tesoreria_en_sync=cfg.tesoreria_en_sync,
     )
     if plan.nada_que_hacer():
         console.print(
             "[red]ERROR:[/red] todas las etapas estan deshabilitadas. Quita "
-            "alguno de los --no-docs / --no-extractos / --no-cartera."
+            "alguno de los --no-docs / --no-extractos / --no-cartera / --no-tesoreria."
         )
         raise typer.Exit(code=2)
 
-    cfg = Config.cargar()
     estado = cargar_estado()
     inventario = cargar_inventario()
     inv_ext = cargar_inventario_extractos()
     mem = MemoriaTimings()
 
     opciones_docs: Optional[OpcionesCorrida] = None
+    plan_tesoreria = None
+    if plan.do_tesoreria:
+        plan_tesoreria = _construir_plan_tesoreria_sync(cfg=cfg)
     if plan.do_docs:
         opciones_docs = _construir_opciones_docs(
             cfg=cfg, estado=estado,
@@ -965,7 +1013,8 @@ def sync(
             f"Etapas: "
             f"[{'cyan' if plan.do_docs else 'dim'}]docs[/{'cyan' if plan.do_docs else 'dim'}] "
             f"[{'cyan' if plan.do_extractos else 'dim'}]extractos[/{'cyan' if plan.do_extractos else 'dim'}] "
-            f"[{'cyan' if plan.do_cartera else 'dim'}]cartera[/{'cyan' if plan.do_cartera else 'dim'}]",
+            f"[{'cyan' if plan.do_cartera else 'dim'}]cartera[/{'cyan' if plan.do_cartera else 'dim'}] "
+            f"[{'cyan' if plan.do_tesoreria else 'dim'}]tesoreria[/{'cyan' if plan.do_tesoreria else 'dim'}]",
             title="Iniciando sync",
             border_style="cyan",
         )
@@ -977,13 +1026,15 @@ def sync(
     err_ext: Optional[str] = None
     res_cart: Optional[ResumenCartera] = None
     err_cart: Optional[str] = None
+    res_tes: Optional[ResumenTesoreria] = None
+    err_tes: Optional[str] = None
 
     try:
         with abrir_navegador() as (context, page):
             login_manual(page, console)
 
             if plan.do_docs and opciones_docs is not None:
-                console.rule("[bold cyan]Etapa 1/3: documentos[/bold cyan]")
+                console.rule("[bold cyan]Etapa 1/4: documentos[/bold cyan]")
                 try:
                     res_docs = sincronizar_documentos(
                         context=context, page=page, opciones=opciones_docs,
@@ -999,7 +1050,7 @@ def sync(
                     console.print(f"[red]Etapa docs fallo: {err_docs}[/red]")
 
             if plan.do_extractos:
-                console.rule("[bold cyan]Etapa 2/3: extractos[/bold cyan]")
+                console.rule("[bold cyan]Etapa 2/4: extractos[/bold cyan]")
                 try:
                     res_ext = sincronizar_extractos(
                         page=page, inv_ext=inv_ext, mem=mem, console=console,
@@ -1015,7 +1066,7 @@ def sync(
                     console.print(f"[red]Etapa extractos fallo: {err_ext}[/red]")
 
             if plan.do_cartera:
-                console.rule("[bold cyan]Etapa 3/3: cartera[/bold cyan]")
+                console.rule("[bold cyan]Etapa 3/4: cartera[/bold cyan]")
                 try:
                     res_cart = sincronizar_cartera(
                         page=page, mem=mem, console=console,
@@ -1031,6 +1082,25 @@ def sync(
                     err_cart = f"{type(e).__name__}: {e}"
                     logger.exception(f"sync.cartera error inesperado: {e}")
                     console.print(f"[red]Etapa cartera fallo: {err_cart}[/red]")
+
+            if plan.do_tesoreria and plan_tesoreria is not None:
+                console.rule("[bold cyan]Etapa 4/4: tesoreria[/bold cyan]")
+                try:
+                    res_tes = sincronizar_tesoreria(
+                        page=page,
+                        plan=plan_tesoreria,
+                        mem=mem,
+                        console=console,
+                        retry_doc=cfg.retry_doc,
+                    )
+                except SessionExpired as e:
+                    err_tes = f"sesion expirada: {e}"
+                    logger.error(f"sync.tesoreria SessionExpired: {e}")
+                    console.print(f"[red]Etapa tesoreria fallo: {err_tes}[/red]")
+                except Exception as e:
+                    err_tes = f"{type(e).__name__}: {e}"
+                    logger.exception(f"sync.tesoreria error inesperado: {e}")
+                    console.print(f"[red]Etapa tesoreria fallo: {err_tes}[/red]")
     finally:
         try:
             mem.guardar()
@@ -1052,16 +1122,19 @@ def sync(
         res_docs=res_docs, err_docs=err_docs,
         res_ext=res_ext, err_ext=err_ext,
         res_cart=res_cart, err_cart=err_cart,
+        res_tes=res_tes, err_tes=err_tes,
     )
 
     # Exit code: 0 si todo OK; 3 si hubo errores parciales (excepciones por etapa
     # o fallidos > 0 en docs/extractos, o cartera no quedo ok).
-    hubo_error = bool(err_docs or err_ext or err_cart)
+    hubo_error = bool(err_docs or err_ext or err_cart or err_tes)
     if plan.do_docs and res_docs is not None and res_docs.fallidos > 0:
         hubo_error = True
     if plan.do_extractos and res_ext is not None and res_ext.fallidos > 0:
         hubo_error = True
     if plan.do_cartera and res_cart is not None and not res_cart.ok:
+        hubo_error = True
+    if plan.do_tesoreria and res_tes is not None and res_tes.fallidos > 0:
         hubo_error = True
 
     raise typer.Exit(code=3 if hubo_error else 0)

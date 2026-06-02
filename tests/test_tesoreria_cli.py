@@ -168,8 +168,8 @@ def test_tesoreria_account_con_tag_seguro_no_filtra_account(monkeypatch):
     assert "mi-cuenta" in result.stdout
 
 
-def test_sync_help_no_incluye_tesoreria(monkeypatch):
+def test_sync_help_expone_no_tesoreria(monkeypatch):
     monkeypatch.setattr(cli_mod, "abrir_navegador", _no_browser)
     result = runner.invoke(app, ["sync", "--help"])
     assert result.exit_code == 0
-    assert "tesoreria" not in result.stdout.lower()
+    assert "--no-tesoreria" in result.stdout

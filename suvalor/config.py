@@ -28,6 +28,7 @@ class Config:
     retry_doc: int = 3
     max_pages_per_query: int = 50
     tipos_default: list[str] = field(default_factory=lambda: list(TIPOS_DEFAULT))
+    tesoreria_en_sync: bool = True
 
     # Waits minimos (segundos). Valores bajos -> mas rapido pero mas frageil.
     wait_min_consulta_s: float = 3.0
@@ -66,6 +67,9 @@ max_pages_per_query = 50
 # Tipos a procesar en una corrida normal (sin --types).
 # FB y PB son opt-in; CC es legacy local y ya no aparece en el selector actual.
 tipos_default = ["RC", "NC", "CE"]
+
+# Incluir Tesoreria en `suvalor sync`. Use --no-tesoreria para apagarlo por corrida.
+tesoreria_en_sync = true
 
 # Waits minimos (segundos). El sistema usa max(piso, p95 + buffer).
 wait_min_consulta_s = 3.0

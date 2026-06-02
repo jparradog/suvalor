@@ -209,7 +209,7 @@ queda ningun tipo actual para reintentar, no se abre Chrome ni se pide login.
 
 | Comando | Que hace |
 |---|---|
-| `suvalor sync` | (default) Ejecuta docs + extractos + cartera. |
+| `suvalor sync` | (default) Ejecuta docs + extractos + cartera + tesoreria. |
 | `suvalor extractos` | Sincroniza extractos consolidados (PDF). |
 | `suvalor cartera` | Snapshot del portafolio actual (XLS). |
 | `suvalor inventario` | Resumen del inventario actual. |
@@ -219,9 +219,13 @@ queda ningun tipo actual para reintentar, no se abre Chrome ni se pide login.
 | `suvalor config init` | Crea `_state/config.toml` con un template editable. |
 | `suvalor timings` | Muestra los percentiles aprendidos por operacion. |
 
-### Tesoreria (opt-in staging)
+### Tesoreria en `sync` y comando opt-in
 
-`suvalor tesoreria` existe como superficie opt-in de staging/debug para
+`suvalor sync` incluye movimientos de Tesoreria por defecto. Para apagar esa
+etapa en una corrida use `--no-tesoreria`; tambien se puede deshabilitar por
+configuracion con `tesoreria_en_sync = false`.
+
+`suvalor tesoreria` se conserva como superficie opt-in de debug/manual para
 descargar movimientos de Tesoreria por rango explicito:
 
 ```bash
@@ -234,11 +238,9 @@ credenciales, teclado virtual, OTP ni reCAPTCHA. Si se usa `--account`, tambien
 se debe pasar un `--tag` seguro; el texto real de la cuenta nunca debe aparecer
 en rutas, logs ni resumenes.
 
-Tesoreria todavia no corre dentro de `sync`. El objetivo final es integrarla a
-`suvalor sync` con un control explicito como `--no-tesoreria`. El caso
-**sin datos** observado descarga un `Movimientos_Tesoreria.xls` de **44 bytes**
-con solo encabezado y sin filas; el cliente debe tratarlo como resultado no exitoso
-y no crea archivos de exito falsos.
+El caso **sin datos** observado descarga un `Movimientos_Tesoreria.xls` de
+**44 bytes** con solo encabezado y sin filas; el cliente debe tratarlo como
+resultado no exitoso y no crea archivos de exito falsos.
 
 ## Configuracion (`$SUVALOR_HOME/_state/config.toml`)
 

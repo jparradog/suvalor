@@ -16,7 +16,8 @@ def test_readme_documenta_tesoreria_staging_privacidad_y_sync_final():
     assert "suvalor tesoreria" in readme
     assert "login manual" in readme
     assert "opt-in" in readme
-    assert "no corre dentro de `sync`" in readme
+    assert "sync` incluye movimientos de tesoreria" in readme
+    assert "tesoreria_en_sync = false" in readme
     assert "--tag" in readme
     assert "seguro" in readme
     assert "--account" in readme
