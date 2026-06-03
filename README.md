@@ -21,14 +21,16 @@
 
 Automatiza la descarga de:
 
-- **Documentos contables** (Recibos de Caja, Notas Contables, Comprobantes
-  de Egreso, Certificados de Custodia, etc.) por rangos de fecha, con
-  inventario incremental: solo descarga lo que falta.
+- **Documentos contables** (`RC`, `NC`, `CE` por default; `FB`/`PB` opt-in)
+  por rangos de fecha, con inventario incremental: solo descarga lo que falta.
 - **Extractos consolidados mensuales** (PDF) — los ultimos 12 meses
   disponibles.
 - **Snapshot del portafolio** consolidado (XLS).
+- **Movimientos de Tesoreria** (PDF/XLS) dentro de `sync` por default, con
+  comando opt-in para rangos explicitos.
 
-Todo en una sola sesion de Playwright + un solo login manual.
+Todo en una sola sesion de Playwright + un solo login manual cuando se usa
+`sync`.
 
 ## Que NO hace
 
@@ -138,8 +140,8 @@ uv run suvalor              # equivalente a `uv run suvalor sync`
 uv run suvalor sync
 ```
 
-`sync` ejecuta **docs + extractos + cartera en una sola sesion** con un
-solo login manual. Imprime una tabla rich con el resumen al final.
+`sync` ejecuta **docs + extractos + cartera + tesoreria en una sola sesion**
+con un solo login manual. Imprime una tabla rich con el resumen al final.
 
 Si una etapa falla (sesion expirada, error de red), las demas siguen y el
 resumen lo refleja. Exit code 0 si todo OK, 3 si hubo errores parciales.
@@ -150,6 +152,7 @@ Flags utiles:
 uv run suvalor sync --no-docs              # saltar documentos
 uv run suvalor sync --no-extractos         # saltar extractos
 uv run suvalor sync --no-cartera           # saltar snapshot de cartera
+uv run suvalor sync --no-tesoreria         # saltar movimientos de Tesoreria
 uv run suvalor sync --types RC,NC          # filtrar tipos de docs
 uv run suvalor sync --backfill             # docs: historico desde 2024-01-01
 ```
@@ -212,6 +215,8 @@ queda ningun tipo actual para reintentar, no se abre Chrome ni se pide login.
 | `suvalor sync` | (default) Ejecuta docs + extractos + cartera + tesoreria. |
 | `suvalor extractos` | Sincroniza extractos consolidados (PDF). |
 | `suvalor cartera` | Snapshot del portafolio actual (XLS). |
+| `suvalor tesoreria` | Descarga opt-in/debug de movimientos de Tesoreria por rango explicito. |
+| `suvalor fondos` | Prepara movimientos de Fondos en modo fail-closed; no automatiza pagina aun. |
 | `suvalor inventario` | Resumen del inventario actual. |
 | `suvalor reset` | Borra `_state/inventario.json` y `_state/ultima_corrida.json`. |
 | `suvalor recuperar-fallidos` | Reintenta cada fallo en `_Fallidos/fallos.tsv`. |
@@ -239,8 +244,17 @@ se debe pasar un `--tag` seguro; el texto real de la cuenta nunca debe aparecer
 en rutas, logs ni resumenes.
 
 El caso **sin datos** observado descarga un `Movimientos_Tesoreria.xls` de
-**44 bytes** con solo encabezado y sin filas; el cliente debe tratarlo como
-resultado no exitoso y no crea archivos de exito falsos.
+**44 bytes** con solo encabezado y sin filas; el cliente lo reporta como
+`sin movimientos`/saltado y no crea archivos de exito falsos.
+
+### Funciones investigadas pero no automatizadas
+
+- **Fondos**: existe `suvalor fondos` para validar argumentos, rutas y scope,
+  pero el flujo de pagina esta en modo **fail-closed** hasta contar con
+  evidencia redacted suficiente de selectores, exportacion y sin-datos.
+- **ReteFuente**: la investigacion tecnica esta documentada en
+  `docs/SITE_NOTES.md`; no hay comando `suvalor retefuente` ni integracion en
+  `sync` porque el probe manual fue inconcluso.
 
 ## Configuracion (`$SUVALOR_HOME/_state/config.toml`)
 
@@ -258,6 +272,7 @@ range_days = 89                # NO subir, el sitio limita en 89 dias
 retry_doc = 3
 max_pages_per_query = 50
 tipos_default = ["RC", "NC", "CE"]
+tesoreria_en_sync = true
 wait_min_consulta_s = 3.0
 wait_min_descarga_s = 5.0
 wait_min_page_change_s = 3.0
@@ -297,9 +312,9 @@ uv run suvalor timings
 uv run pytest
 ```
 
-Suite pura de **116+ tests** (sin Playwright, sin red). Cubre rangos,
-parseo, timings, formato de estado, heuristicas de verificacion y argument
-parsing del CLI.
+Suite pura de **284+ tests** (sin Playwright, sin red). Cubre rangos,
+parseo, timings, formato de estado, heuristicas de verificacion, Tesoreria,
+Fondos fail-closed y argument parsing del CLI.
 
 ## Estructura
 
@@ -319,11 +334,11 @@ suvalor/
 │   ├── __init__.py
 │   ├── __main__.py
 │   ├── cli.py           (entrypoint Typer)
-│   ├── orquestador.py   (loop docs + extractos + cartera)
+│   ├── orquestador.py   (loop docs + extractos + cartera + tesoreria)
 │   ├── navegador.py     (Playwright + perfil persistente + anti-deteccion)
 │   ├── pagina.py        (interacciones ASP.NET)
 │   ├── descargador.py   (descarga + popup PDF)
-│   ├── verificacion.py  (post-descarga: header PDF / HTML-as-XLS)
+│   ├── verificacion.py  (post-descarga: PDF / XLS / reportes tabulares)
 │   ├── estado.py        (inventario + extractos + ultima_corrida pydantic)
 │   ├── timings.py       (memoria adaptativa de tiempos)
 │   ├── rangos.py        (particion en rangos de 89 dias)
@@ -349,8 +364,8 @@ suvalor/
 ## Hallazgos tecnicos del portal
 
 Ver [`docs/SITE_NOTES.md`](docs/SITE_NOTES.md): URLs, IDs ASP.NET,
-restricciones (89 dias por consulta, 12 meses de extractos, 504 en FB/PB,
-session timeout de 7 minutos).
+restricciones (89 dias por consulta, 12 meses de extractos, 504 en FB,
+Tesoreria sin movimientos, Fondos fail-closed, session timeout de 7 minutos).
 
 ## Contribuir
 
