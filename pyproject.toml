@@ -1,6 +1,6 @@
 [project]
 name = "suvalor"
-version = "0.3.0"
+version = "0.4.0"
 description = "Cliente CLI no oficial para descarga incremental y verificada de documentos contables, extractos y cartera del portal Suvalor (Valores Bancolombia), usando una sesion autenticada propia."
 requires-python = ">=3.10"
 readme = "README.md"

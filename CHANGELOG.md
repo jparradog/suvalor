@@ -4,6 +4,39 @@ Todos los cambios notables se documentan aqui. Formato basado en
 [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado [SemVer 2.0.0](https://semver.org/lang/es/).
 
+## [0.4.0] — 2026-06-01
+
+### Added
+- Flujo de Tesoreria para descargar movimientos en PDF/XLS con login manual,
+  rangos particionados, promocion atomica y verificacion post-descarga.
+- Integracion de Tesoreria en `suvalor sync` por defecto, con apagado por
+  corrida via `--no-tesoreria` y por configuracion via `tesoreria_en_sync`.
+- Comando opt-in `suvalor tesoreria` para pruebas controladas por rango,
+  formato, cuenta y tag seguro.
+- Diagnosticos seguros para reportes de Tesoreria no reconocidos: solo exponen
+  metadatos de forma, no filas, cuentas ni contenido financiero.
+- Base fail-closed para Fondos, dejando la automatizacion bloqueada hasta tener
+  evidencia redacted suficiente del portal.
+
+### Changed
+- `suvalor sync` ahora cubre docs, extractos, cartera y Tesoreria en una sola
+  sesion autenticada manualmente.
+- Los tiempos adaptativos incluyen operacion `tesoreria`.
+- La verificacion de reportes tabulares distingue formatos validos,
+  respuestas HTML/error/login y reportes vacios.
+
+### Fixed
+- Los reportes XLS de Tesoreria sin movimientos (header-only) ya no crean un
+  archivo final falso ni hacen fallar `sync`; se cuentan como saltados.
+- Los motivos de fallo de Tesoreria se sanitizan para evitar exponer datos de
+  cuenta o URLs sensibles en stdout/logs.
+
+### Security
+- Se mantiene el login manual: no se automatizan credenciales, OTP, CAPTCHA ni
+  reCAPTCHA.
+- Los nombres de salida de Tesoreria requieren `--tag` canonico cuando se usa
+  `--account`, evitando filtrar etiquetas o numeros de cuenta en rutas.
+
 ## [0.3.0] — 2026-04-28
 
 Primera release publica bajo Apache-2.0.
