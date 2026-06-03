@@ -9,12 +9,22 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .rangos import partir_en_rangos
-from .tipos import TESORERIA_DIR, TESORERIA_FORMATOS, TESORERIA_FORMATOS_EXPORT
+from .tipos import (
+    MOTIVO_TESORERIA_SIN_MOVIMIENTOS,
+    TESORERIA_DIR,
+    TESORERIA_FORMATOS,
+    TESORERIA_FORMATOS_EXPORT,
+)
 from .verificacion import verificar_descarga
 
 _FORMATOS_TESORERIA = set(TESORERIA_FORMATOS)
 _FORMATOS_EXPORT_TESORERIA = set(TESORERIA_FORMATOS_EXPORT)
 _RE_TAG_TESORERIA = re.compile(r"^[a-z0-9][a-z0-9._-]{0,39}$")
+
+
+def es_tesoreria_sin_movimientos(motivo: str) -> bool:
+    """Indica si el portal devolvio un reporte vacio/header-only."""
+    return motivo.startswith(MOTIVO_TESORERIA_SIN_MOVIMIENTOS)
 
 
 @dataclass(frozen=True)

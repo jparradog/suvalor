@@ -108,6 +108,7 @@ CARTERA_TMP_FILENAME = "Portafolio.xls"
 TESORERIA_FORMATOS_EXPORT = ("pdf", "xls")
 TESORERIA_FORMATOS = (*TESORERIA_FORMATOS_EXPORT, "both")
 TESORERIA_TMP_SUFFIX = ".tmp"
+MOTIVO_TESORERIA_SIN_MOVIMIENTOS = "reporte tesoreria sin movimientos"
 
 # --- IDs ASP.NET (no cambiar) ---
 ID_TIPO_DOC = "ctl00_Contenedor_ucConsultarDocumentosElectronicos_ddlTipoDocumento"

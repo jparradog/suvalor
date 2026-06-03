@@ -74,6 +74,7 @@ from .rangos import RangoFechas
 from .tesoreria import (
     PlanTesoreria,
     debe_descargar_tesoreria,
+    es_tesoreria_sin_movimientos,
     promover_candidato_tesoreria,
 )
 from .timings import MemoriaTimings, medir
@@ -176,6 +177,8 @@ def sincronizar_tesoreria_plan(
         resultado = promover_candidato_tesoreria(candidato, destino, formato=formato)
         if resultado.ok:
             resumen.nuevos += 1
+        elif es_tesoreria_sin_movimientos(resultado.motivo):
+            resumen.saltados += 1
         else:
             resumen.fallidos += 1
             resumen.detalle_fallidos.append((destino.name, "promocion fallo"))
@@ -244,6 +247,12 @@ def sincronizar_tesoreria(
                     console.print(f"  [green][ok ][/green] {destino.name}")
                     break
                 ultimo_motivo = resultado.motivo or "exportacion fallo"
+                if es_tesoreria_sin_movimientos(ultimo_motivo):
+                    resumen.saltados += 1
+                    console.print(
+                        f"  [yellow][skip][/yellow] {destino.name}: sin movimientos"
+                    )
+                    break
                 if intento < max(1, retry_doc) - 1:
                     console.print(
                         f"  [yellow][retry {intento + 1}/{max(1, retry_doc)}][/yellow] "

@@ -306,7 +306,6 @@ class TestEsTabularTesoreriaValido:
             "<html><body>Error de aplicacion<table><tr><td>x</td></tr></table></body></html>",
             "foo,bar\n1,2\n",
             "Fecha,Valor\n2026-01-01\n",
-            "Fecha\tDocumento\tDetalle\tObservacion\tValor\t\r\n",
             "<html><body><table><tr><th>Fecha</th><th>Valor</th></tr></table></body></html>",
             "PK-no-es-zip-valido",
             "\x00\x01\x02\x03",
@@ -318,6 +317,65 @@ class TestEsTabularTesoreriaValido:
         ok, motivo = es_tabular_tesoreria_valido(p)
         assert ok is False
         assert motivo
+
+    def test_header_only_tesoreria_es_sin_movimientos_no_exitoso(self, tmp_path):
+        p = tmp_path / "tesoreria.xls"
+        p.write_text(
+            "Fecha\tDocumento\tDetalle\tObservacion\tValor\t\r\n", encoding="utf-8"
+        )
+
+        ok, motivo = es_tabular_tesoreria_valido(p)
+
+        assert ok is False
+        assert "reporte tesoreria sin movimientos" in motivo
+        assert "lineas=1" in motivo
+        assert "sep_tab=5" in motivo
+
+    def test_header_parcial_de_tesoreria_no_es_sin_movimientos(self, tmp_path):
+        p = tmp_path / "tesoreria.xls"
+        p.write_text("Fecha\tValor\n", encoding="utf-8")
+
+        ok, motivo = es_tabular_tesoreria_valido(p)
+
+        assert ok is False
+        assert "formato de reporte tesoreria no reconocido" in motivo
+        assert "reporte tesoreria sin movimientos" not in motivo
+
+    def test_diagnostico_formato_no_reconocido_no_filtra_contenido(self, tmp_path):
+        p = tmp_path / "tesoreria.xls"
+        p.write_text(
+            "Cuenta Cliente Confidencial,Referencia\n123456789,100\n",
+            encoding="utf-8",
+        )
+
+        ok, motivo = es_tabular_tesoreria_valido(p)
+
+        assert ok is False
+        assert "formato de reporte tesoreria no reconocido" in motivo
+        assert "size=" in motivo
+        assert "clase=texto" in motivo
+        assert "lineas=2" in motivo
+        assert "sep_coma=1" in motivo
+        assert "Cuenta" not in motivo
+        assert "Confidencial" not in motivo
+        assert "123456789" not in motivo
+
+    def test_diagnostico_html_sin_tabla_incluye_solo_contadores(self, tmp_path):
+        p = tmp_path / "tesoreria.xls"
+        p.write_text(
+            "<html><body><table><tr><th>Fecha</th></tr></table></body></html>",
+            encoding="utf-8",
+        )
+
+        ok, motivo = es_tabular_tesoreria_valido(p)
+
+        assert ok is False
+        assert "html sin tabla" in motivo
+        assert "clase=html" in motivo
+        assert "table=1" in motivo
+        assert "tr=1" in motivo
+        assert "td=0" in motivo
+        assert "Fecha" not in motivo
 
 
 # --------------------------------------------------------------------------- #

@@ -25,6 +25,7 @@ from pathlib import Path
 from zipfile import BadZipFile, ZipFile
 
 from .diagnosticos import clasificar_fallo_portal
+from .tipos import MOTIVO_TESORERIA_SIN_MOVIMIENTOS
 
 # Cuanto del final del PDF leemos para buscar el marker `%%EOF`.
 # El marker normalmente aparece en los ultimos ~50 bytes, pero algunos
@@ -50,6 +51,13 @@ _FONDOS_ERROR_HINTS = _HTML_LOGIN_HINTS + (
 )
 _OLE_XLS_HEADER = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 _TESORERIA_HEADER_TOKENS = ("fecha", "descripcion", "movimiento", "valor", "saldo")
+_TESORERIA_HEADER_SIN_MOVIMIENTOS = (
+    "fecha",
+    "documento",
+    "detalle",
+    "observacion",
+    "valor",
+)
 
 
 def sanitizar_pdf_bytes(data: bytes) -> bytes:
@@ -247,8 +255,52 @@ def _html_tesoreria_con_tabla(texto: str) -> bool:
     return len(re.findall(r"<tr\b", bajo)) >= 2
 
 
+def _diagnostico_tesoreria_seguro(raw: bytes, texto: str) -> str:
+    """Resume forma del candidato sin incluir celdas ni contenido sensible."""
+    bajo = texto.lower()
+    lineas = [ln for ln in texto.splitlines() if ln.strip()]
+    clase = "html" if "<html" in bajo or "<!doctype" in bajo else "texto"
+    partes = [f"size={len(raw)}", f"clase={clase}", f"lineas={len(lineas)}"]
+    if clase == "html":
+        tr_count = len(re.findall(r"<tr\b", bajo))
+        td_count = len(re.findall(r"<td\b", bajo))
+        partes.extend(
+            [
+                f"table={bajo.count('<table')}",
+                f"tr={tr_count}",
+                f"td={td_count}",
+            ]
+        )
+    else:
+        primera = lineas[0] if lineas else ""
+        partes.extend(
+            [
+                f"sep_tab={primera.count(chr(9))}",
+                f"sep_punto_coma={primera.count(';')}",
+                f"sep_coma={primera.count(',')}",
+            ]
+        )
+    return "; ".join(partes)
+
+
+def _con_diagnostico_tesoreria(motivo: str, raw: bytes, texto: str) -> str:
+    return f"{motivo} ({_diagnostico_tesoreria_seguro(raw, texto)})"
+
+
+def _lineas_tesoreria(texto: str) -> list[str]:
+    return [ln.strip() for ln in texto.splitlines() if ln.strip()]
+
+
+def _es_texto_tesoreria_sin_movimientos(texto: str) -> bool:
+    lineas = _lineas_tesoreria(texto)
+    if len(lineas) != 1:
+        return False
+    header = tuple(c.strip().lower() for c in lineas[0].split("\t") if c.strip())
+    return header == _TESORERIA_HEADER_SIN_MOVIMIENTOS
+
+
 def _es_texto_tesoreria_delimitado_valido(texto: str) -> bool:
-    lineas = [ln.strip() for ln in texto.splitlines() if ln.strip()]
+    lineas = _lineas_tesoreria(texto)
     if len(lineas) < 2:
         return False
     for sep in ("\t", ";", ","):
@@ -289,11 +341,17 @@ def es_tabular_tesoreria_valido(path: Path) -> tuple[bool, str]:
         return (
             (True, "")
             if _html_tesoreria_con_tabla(texto)
-            else (False, "html sin tabla")
+            else (False, _con_diagnostico_tesoreria("html sin tabla", raw, texto))
         )
     if _es_texto_tesoreria_delimitado_valido(texto):
         return True, ""
-    return False, "formato de reporte tesoreria no reconocido"
+    if _es_texto_tesoreria_sin_movimientos(texto):
+        return False, _con_diagnostico_tesoreria(
+            MOTIVO_TESORERIA_SIN_MOVIMIENTOS, raw, texto
+        )
+    return False, _con_diagnostico_tesoreria(
+        "formato de reporte tesoreria no reconocido", raw, texto
+    )
 
 
 def verificar_descarga(path: Path, tipo: str) -> tuple[bool, str]:

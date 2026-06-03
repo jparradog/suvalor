@@ -18,6 +18,7 @@ from suvalor.pagina import CuentaTesoreriaNoEncontrada
 from suvalor.tesoreria import ResultadoPromocionTesoreria
 from suvalor.tesoreria import construir_plan_tesoreria
 from suvalor.timings import MemoriaTimings
+from suvalor.tipos import MOTIVO_TESORERIA_SIN_MOVIMIENTOS
 
 
 def _pdf_valido(marca: bytes = b"actual") -> bytes:
@@ -70,6 +71,27 @@ def test_sincronizar_tesoreria_promueve_candidato_valido(tmp_path):
     assert resumen.saltados == 0
     assert resumen.fallidos == 0
     assert plan.destinos[0].read_text(encoding="utf-8") == _xls_valido("nuevo")
+    assert not (tmp_path / "candidato.xls").exists()
+
+
+def test_sincronizar_tesoreria_sin_movimientos_no_crea_final_ni_falla(tmp_path):
+    plan = _plan(tmp_path, formato="xls")
+
+    def exportar(_destino: Path, _formato: str) -> Path:
+        candidato = tmp_path / "candidato.xls"
+        candidato.write_text(
+            "Fecha\tDocumento\tDetalle\tObservacion\tValor\t\r\n",
+            encoding="utf-8",
+        )
+        return candidato
+
+    resumen = sincronizar_tesoreria_plan(plan=plan, exportar=exportar)
+
+    assert resumen.total == 1
+    assert resumen.nuevos == 0
+    assert resumen.saltados == 1
+    assert resumen.fallidos == 0
+    assert not plan.destinos[0].exists()
     assert not (tmp_path / "candidato.xls").exists()
 
 
@@ -194,6 +216,33 @@ def test_sincronizar_tesoreria_page_prepara_y_exporta(monkeypatch, tmp_path):
     )
     assert llamadas[3][0] == "exportar"
     assert mem.medidas[0][0] == "tesoreria"
+
+
+def test_sincronizar_tesoreria_page_sin_movimientos_no_falla(monkeypatch, tmp_path):
+    plan = _plan(tmp_path, formato="xls")
+    monkeypatch.setattr(orq, "goto_robusto", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        orq, "dismiss_componentart_banner", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(orq, "preparar_tesoreria", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        orq,
+        "exportar_reporte_tesoreria",
+        lambda **kwargs: ResultadoPromocionTesoreria(
+            False,
+            f"{MOTIVO_TESORERIA_SIN_MOVIMIENTOS} (size=44; lineas=1)",
+            kwargs["destino"],
+        ),
+    )
+
+    resumen = sincronizar_tesoreria(
+        page=cast(Any, object()),
+        plan=plan,
+        mem=cast(MemoriaTimings, FakeMem()),
+        console=Console(file=io.StringIO()),
+    )
+
+    assert resumen == ResumenTesoreria(nuevos=0, saltados=1, fallidos=0, total=1)
 
 
 def test_sincronizar_tesoreria_page_no_filtra_account_si_no_encuentra(
